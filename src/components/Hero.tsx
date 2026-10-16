@@ -1,4 +1,4 @@
-
+import MypotraitImage from "../../public/Freedom_Pic.jpg"
 import Image from "next/image";
 
 export default function Hero() {
@@ -45,7 +45,7 @@ export default function Hero() {
       <div className="relative mx-auto w-full max-w-[380px] lg:ml-auto lg:mr-0 lg:translate-x-4">
         <div className="relative aspect-[19/24] overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#111827] shadow-[0_40px_80px_rgba(0,0,0,0.5),0_0_60px_rgba(26,143,255,0.08)]">
           <Image
-            src="/images/Freedom_Pic.jpg"
+            src={MypotraitImage}
             alt="Portrait of Freedom Chukwudi"
             fill
             priority
