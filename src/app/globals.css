@@ -4,9 +4,14 @@
 :root {
   color-scheme: dark;
   --background: #080b10;
-  --foreground: #ffffff;
-  --blue: #1a8fff;
-  --muted: #8b99b0;
+  --surface: #0e1522;
+  --surface-raised: #131c2d;
+  --foreground: #f2f6fb;
+  --muted: #93a1b8;
+  --accent: #1a8fff;
+  --accent-soft: rgb(26 143 255 / 0.12);
+  --border: rgb(255 255 255 / 0.08);
+  --radius: 16px;
 }
 
 @theme inline {
@@ -32,6 +37,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "DM Sans", sans-serif;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  max-width: 100%;
 }
 
 ::selection {
@@ -40,7 +51,9 @@ body {
 }
 
 :focus-visible {
-  outline-color: var(--blue);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
