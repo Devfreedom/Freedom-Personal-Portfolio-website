@@ -10,47 +10,51 @@ export default function Hero() {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-32 right-0 -z-10 h-72 w-72 rounded-full bg-[#1a8fff]/10 blur-[100px]"
+        style={{
+          background:
+            "radial-gradient(60% 100% at 78% 0%, var(--accent-soft), transparent 70%)",
+        }}
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px]"
       />
 
       <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
         <div>
-          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#1a8fff]/25 bg-[#1a8fff]/10 px-4 py-1.5 text-xs font-medium uppercase tracking-widest text-[#5eb2ff]">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-[#1a8fff]" />
-            Freedom Chukwudi — Web Developer
+          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-accent-strong">
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+            Web Developer
           </p>
 
           <h1
             id="hero-heading"
-            className="font-[family-name:var(--font-syne)] text-[clamp(2.4rem,5.5vw,4rem)] font-extrabold leading-[1.06] tracking-[-0.03em] text-white"
+            className="font-display text-[clamp(2.5rem,5.5vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.03em] text-foreground"
           >
             I build useful digital experiences for the web.
           </h1>
 
-          <p className="mt-6 max-w-xl text-base leading-7 text-[#93a1b8] sm:text-lg sm:leading-8">
-            I&apos;m a web developer learning through hands-on projects. I work
-            across the stack — from responsive interfaces in React and Next.js
-            to APIs and databases with Node.js, Express, and PostgreSQL — and
-            I&apos;m focused on writing clear, maintainable code.
+          <p className="mt-6 max-w-xl text-base leading-7 text-muted sm:text-lg sm:leading-8">
+            I&apos;m Freedom, a web developer learning through hands-on
+            projects. I work across the stack — responsive interfaces in React
+            and Next.js, and APIs and databases with Node.js, Express, and
+            PostgreSQL — with a focus on clear, maintainable code.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
             <a
               href="#projects"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#1a8fff] px-7 text-[15px] font-semibold text-white transition hover:bg-[#3aa0ff] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1a8fff]"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-accent px-7 text-[15px] font-semibold text-[#04101f] transition hover:bg-accent-strong"
             >
               Explore projects
             </a>
             <a
               href="#contact"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-7 text-[15px] font-semibold text-white transition hover:border-[#1a8fff]/60 hover:text-[#5eb2ff] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1a8fff]"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line-strong px-7 text-[15px] font-semibold text-foreground transition hover:border-accent/60 hover:text-accent-strong"
             >
-              Contact me
+              Get in touch
             </a>
           </div>
 
-          <p className="mt-8 border-t border-white/[0.07] pt-6 text-sm leading-6 text-[#93a1b8]">
-            Currently building: full-stack apps with React, Express, and
+          <p className="mt-8 border-t border-line pt-6 text-sm leading-6 text-muted">
+            Currently building full-stack apps with React, Express, and
             PostgreSQL. Open to feedback, collaboration, and junior
             opportunities.
           </p>
@@ -60,9 +64,9 @@ export default function Hero() {
           <figure className="relative">
             <div
               aria-hidden="true"
-              className="absolute -inset-3 rounded-[24px] border border-[#1a8fff]/20"
+              className="absolute -inset-3 rounded-[24px] border border-accent/15"
             />
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] border border-white/10 bg-[#0e1522]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] border border-line bg-surface">
               <Image
                 src={portrait}
                 alt="Portrait of Freedom Chukwudi"
@@ -72,7 +76,7 @@ export default function Hero() {
                 className="object-cover object-top"
               />
             </div>
-            <figcaption className="mt-4 text-center text-sm text-[#93a1b8]">
+            <figcaption className="mt-4 text-center text-sm text-muted">
               Freedom Chukwudi — web developer
             </figcaption>
           </figure>
