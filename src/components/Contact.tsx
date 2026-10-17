@@ -1,4 +1,3 @@
-
 const socials = [
   { label: "X / Twitter", href: "https://x.com/freedom_web2dev" },
   { label: "GitHub", href: "https://github.com/Devfreedom" },
@@ -7,42 +6,60 @@ const socials = [
 
 export default function Contact() {
   return (
-    <section id="contact" className="scroll-mt-20 px-5 pb-20 pt-10 sm:px-8 lg:px-12 lg:pb-28">
-      <div className="relative mx-auto max-w-[1440px] overflow-hidden rounded-3xl border border-white/[0.07] bg-[#111827] px-5 py-16 text-center sm:px-10 sm:py-20 lg:px-16">
-        <div className="pointer-events-none absolute -top-40 left-1/2 h-72 w-96 -translate-x-1/2 rounded-full bg-[#1a8fff]/15 blur-[100px]" />
+    <section
+      id="contact"
+      aria-labelledby="contact-heading"
+      className="border-t border-line px-5 py-20 sm:px-8 lg:py-28"
+    >
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="relative overflow-hidden rounded-3xl border border-line bg-surface px-6 py-14 sm:px-12 sm:py-16 lg:px-16">
+          <div
+            aria-hidden="true"
+            style={{
+              background:
+                "radial-gradient(70% 120% at 50% 0%, var(--accent-soft), transparent 70%)",
+            }}
+            className="pointer-events-none absolute inset-x-0 top-0 h-64"
+          />
 
-        <div className="relative">
-          <p className="mb-4 text-xs font-medium uppercase tracking-[0.15em] text-[#1a8fff]">
-            Contact
-          </p>
+          <div className="relative mx-auto max-w-2xl text-center">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
+              Contact
+            </p>
 
-          <h2 className="font-[family-name:var(--font-syne)] text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-            Get In Touch
-          </h2>
+            <h2
+              id="contact-heading"
+              className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl"
+            >
+              Let&apos;s build something useful.
+            </h2>
 
-          <p className="mt-5 text-base text-[#8b99b0]">
-            Have a project in mind? Let&apos;s work together.
-          </p>
+            <p className="mt-5 text-base leading-7 text-muted">
+              Have a project or a role in mind? I&apos;m open to junior
+              opportunities, collaboration, and honest feedback.
+            </p>
 
-          <a
-            href="mailto:editorfreedom@gmail.com"
-            className="mt-9 inline-flex max-w-full items-center justify-center rounded-full border border-[#1a8fff]/30 px-5 py-4 text-sm font-medium text-[#1a8fff] transition hover:border-[#1a8fff] hover:bg-[#1a8fff] hover:text-white sm:px-8 sm:text-base"
-          >
-            <span className="break-all">editorfreedom@gmail.com</span>
-          </a>
+            <a
+              href="mailto:editorfreedom@gmail.com"
+              className="mt-8 inline-flex max-w-full items-center justify-center rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-[#04101f] transition hover:bg-accent-strong sm:text-base"
+            >
+              <span className="break-all">editorfreedom@gmail.com</span>
+            </a>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {socials.map((social) => (
-              <a
-                key={social.label}
-                href={social.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg border border-white/[0.07] px-5 py-3 text-sm text-[#8b99b0] transition hover:border-white/20 hover:text-white"
-              >
-                {social.label}
-              </a>
-            ))}
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              {socials.map((social) => (
+                <a
+                  key={social.label}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${social.label} (opens in a new tab)`}
+                  className="rounded-lg border border-line px-5 py-3 text-sm text-muted transition hover:border-line-strong hover:text-foreground"
+                >
+                  {social.label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>
