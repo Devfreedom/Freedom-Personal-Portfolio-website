@@ -79,7 +79,7 @@ export default function Skills() {
                 {group.items.map((item) => (
                   <li
                     key={item}
-                    className="rounded-lg border border-line bg-white/[0.03] px-3 py-1.5 text-sm text-foreground/90"
+                    className="rounded-lg border border-line px-3 py-1.5 text-sm text-foreground/90"
                   >
                     {item}
                   </li>

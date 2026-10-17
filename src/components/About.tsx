@@ -15,14 +15,15 @@ export default function About() {
             id="about-heading"
             className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl"
           >
-            Learning in public, building with intent.
+            Learning by building. Improving with every project.
           </h2>
         </div>
 
         <div className="space-y-5 text-base leading-7 text-muted">
           <p>
-            I&apos;m Freedom Chukwudi, a web developer building my skills by
-            working on real, full-stack applications rather than tutorials
+            I&apos;m Freedom Chukwudi, a junior full stack dev building my
+            skills by working on real, full-stack applications rather than
+            tutorials
             alone. Each project — from delivery platforms to healthcare and
             banking demos — starts as a way to understand how the pieces
             connect: the interface, the API, and the database behind it.

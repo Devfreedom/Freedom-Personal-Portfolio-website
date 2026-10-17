@@ -168,7 +168,7 @@ export default function Projects() {
                 {project.stack.map((tech) => (
                   <li
                     key={tech}
-                    className="rounded-md border border-line bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-muted"
+                    className="rounded-md border border-line px-2.5 py-1 text-xs font-medium text-muted"
                   >
                     {tech}
                   </li>

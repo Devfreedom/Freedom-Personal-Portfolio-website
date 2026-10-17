@@ -3,16 +3,16 @@
 
 :root {
   color-scheme: dark;
-  --background: #070a10;
-  --surface: #0c111c;
-  --surface-raised: #121a29;
-  --foreground: #eef2f8;
-  --muted: #8a97ac;
+  --background: #070a12;
+  --surface: #10131e;
+  --surface-raised: #121622;
+  --foreground: #f8fafc;
+  --muted: #9aa3b2;
   --accent: #4d9fff;
   --accent-strong: #82c3ff;
   --accent-soft: rgb(77 159 255 / 0.14);
-  --border: rgb(255 255 255 / 0.08);
-  --border-strong: rgb(255 255 255 / 0.16);
+  --border: rgb(255 255 255 / 0.15);
+  --border-strong: rgb(255 255 255 / 0.22);
   --radius: 16px;
 }
 

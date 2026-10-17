@@ -21,7 +21,7 @@ export default function Hero() {
         <div className="min-w-0">
           <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-accent-strong">
             <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
-            Web Developer
+            Junior full-stack developer
           </p>
 
           <h1
@@ -32,22 +32,17 @@ export default function Hero() {
           </h1>
 
           <p className="mt-6 max-w-xl text-base leading-7 text-muted sm:text-lg sm:leading-8">
-            I&apos;m Freedom, a web developer learning through hands-on
-            projects. I work across the stack — responsive interfaces in React
-            and Next.js, and APIs and databases with Node.js, Express, and
-            PostgreSQL — with a focus on clear, maintainable code.
+            I&apos;m Freedom Chukwudi, a junior full-stack developer learning
+            by building real projects with React, Node.js, Express, and
+            PostgreSQL. I focus on writing better code, solving practical
+            problems, and connecting responsive interfaces to functional APIs
+            and databases.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#projects"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-accent px-7 text-[15px] font-semibold text-[#04101f] transition hover:bg-accent-strong"
-            >
-              Explore projects
-            </a>
+          <div className="mt-8">
             <a
               href="#contact"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line-strong px-7 text-[15px] font-semibold text-foreground transition hover:border-accent/60 hover:text-accent-strong"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-accent px-7 text-[15px] font-semibold text-[#04101f] transition hover:bg-accent-strong"
             >
               Get in touch
             </a>
@@ -62,22 +57,20 @@ export default function Hero() {
 
         <div className="mx-auto w-full max-w-[360px] lg:mx-0 lg:ml-auto">
           <figure className="relative">
-            <div
-              aria-hidden="true"
-              className="absolute -inset-3 rounded-[24px] border border-accent/15"
-            />
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] border border-line bg-surface">
-              <Image
-                src={portrait}
-                alt="Portrait of Freedom Chukwudi"
-                fill
-                priority
-                sizes="(max-width: 1024px) 90vw, 360px"
-                className="object-cover object-top"
-              />
+            <div className="relative overflow-hidden rounded-2xl border border-line bg-surface p-2">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-xl">
+                <Image
+                  src={portrait}
+                  alt="Portrait of Freedom Chukwudi"
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 90vw, 360px"
+                  className="object-cover object-top"
+                />
+              </div>
             </div>
             <figcaption className="mt-4 text-center text-sm text-muted">
-              Freedom Chukwudi — web developer
+              Freedom Chukwudi — junior full stack developer
             </figcaption>
           </figure>
         </div>

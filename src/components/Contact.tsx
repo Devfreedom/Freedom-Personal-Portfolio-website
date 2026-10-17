@@ -41,7 +41,7 @@ export default function Contact() {
 
             <a
               href="mailto:editorfreedom@gmail.com"
-              className="mt-8 inline-flex max-w-full items-center justify-center rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-[#04101f] transition hover:bg-accent-strong sm:text-base"
+              className="group mt-8 inline-flex max-w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-foreground underline decoration-accent/50 decoration-1 underline-offset-8 transition-colors duration-200 hover:text-accent hover:decoration-accent focus-visible:text-accent sm:text-base"
             >
               <span className="break-all">editorfreedom@gmail.com</span>
             </a>
