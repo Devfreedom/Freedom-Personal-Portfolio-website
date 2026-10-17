@@ -26,7 +26,7 @@ export default function Hero() {
 
           <h1
             id="hero-heading"
-            className="font-display text-[clamp(2rem,6vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.03em] text-foreground"
+            className="font-display text-[clamp(1.85rem,6vw,4.25rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-foreground"
           >
             I build useful digital experiences for the web.
           </h1>
