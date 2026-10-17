@@ -18,7 +18,7 @@ export default function Hero() {
       />
 
       <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
-        <div>
+        <div className="min-w-0">
           <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-accent-strong">
             <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
             Web Developer
@@ -26,7 +26,7 @@ export default function Hero() {
 
           <h1
             id="hero-heading"
-            className="font-display text-[clamp(2.5rem,5.5vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.03em] text-foreground"
+            className="font-display text-[clamp(2rem,6vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.03em] text-foreground"
           >
             I build useful digital experiences for the web.
           </h1>
