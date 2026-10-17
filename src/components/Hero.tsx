@@ -39,12 +39,18 @@ export default function Hero() {
             and databases.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap gap-3">
             <a
               href="#contact"
               className="inline-flex min-h-12 items-center justify-center rounded-xl bg-accent px-7 text-[15px] font-semibold text-[#04101f] transition hover:bg-accent-strong"
             >
               Get in touch
+            </a>
+            <a
+              href="#projects"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line-strong px-7 text-[15px] font-semibold text-foreground transition hover:border-accent/60 hover:text-accent-strong"
+            >
+              Explore projects
             </a>
           </div>
 
