@@ -59,8 +59,12 @@ export default function Skills() {
           {groups.map((group, index) => (
             <div
               key={group.title}
-              className="rounded-2xl border border-line bg-surface p-6 sm:p-7"
+              className="group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface p-6 transition duration-200 hover:-translate-y-1 hover:border-accent/35 sm:p-7"
             >
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent opacity-0 transition group-hover:opacity-100"
+              />
               <div className="flex items-baseline justify-between gap-4">
                 <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
                   {group.title}
