@@ -32,6 +32,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - Build a polished, modern, developer portfolio with a dark, premium visual identity and restrained blue accents.
 - Use a consistent design system for colors, typography, spacing, borders, radii, buttons, and cards.
+- Design System Enforcement: Read, import, and strictly adhere to the global UI/UX guidelines and design rules initialized by `uipro init --ai opencode` located in the project's local `./.opencode/` directory.**
 - Prioritize clear typography, strong visual hierarchy, useful project information, and professional presentation.
 - Make real projects and technical skills the main focus rather than decorative graphics or generic service cards.
 - Avoid excessive gradients, glowing effects, unnecessary animations, clutter, and generic AI-generated portfolio patterns.
