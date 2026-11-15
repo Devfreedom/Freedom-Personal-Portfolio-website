@@ -1,22 +1,48 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
+import {
+  Instrument_Serif,
+  Inter,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: "italic",
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+
+const title = "Freedom Chukwudi — Full-Stack Engineer";
+const description =
+  "Full-Stack Engineer building resilient web platforms, multi-role portals, and transactional backends with React, Next.js, Node.js, and PostgreSQL.";
+
 export const metadata: Metadata = {
-  title: "Freedom Chukwudi | Web Developer",
-  description:
-    "Freedom Chukwudi is a web developer learning through hands-on projects with React, Next.js, Node.js, Express, and PostgreSQL. Explore selected projects, skills, and contact details.",
+  title,
+  description,
   openGraph: {
-    title: "Freedom Chukwudi | Web Developer",
-    description:
-      "Web developer learning through hands-on projects. Selected work with React, Next.js, Node.js, Express, and PostgreSQL.",
+    title,
+    description,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Freedom Chukwudi | Web Developer",
-    description:
-      "Web developer learning through hands-on projects. Selected work with React, Next.js, Node.js, Express, and PostgreSQL.",
+    title,
+    description,
   },
 };
 
@@ -26,7 +52,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
+    >
       <body className="antialiased" suppressHydrationWarning>
         <a
           href="#main"
