@@ -100,20 +100,16 @@ The development server automatically refreshes the page as you make changes.
 
 ```text
 Freedom-Personal-Portfolio-website/
-├── public/                 # Static assets and images
+├── public/                 # Portrait & live project preview screenshots
+│   └── projects/
 ├── src/
 │   ├── app/
-│   │   ├── globals.css     # Global styles and design tokens
-│   │   ├── layout.tsx      # Root layout and metadata
-│   │   └── page.tsx        # Main portfolio page
-│   └── components/
-│       ├── Navbar.tsx      # Navigation
-│       ├── Hero.tsx        # Introduction section
-│       ├── Projects.tsx    # Selected projects
-│       ├── Skills.tsx      # Technical skills
-│       ├── About.tsx       # About section
-│       ├── Contact.tsx     # Contact details
-│       └── Footer.jsx      # Page footer
+│   │   ├── globals.css     # Global styles, keyframes, and design tokens
+│   │   ├── layout.tsx      # Root layout, fonts, metadata, and analytics
+│   │   └── page.tsx        # Interactive portfolio, sandbox, and project deck
+│   └── lib/
+│       ├── portfolio-helpers.ts       # Pure brief-scoping & RBAC helpers
+│       └── portfolio-helpers.test.mjs # Node built-in unit tests
 ├── AGENTS.md               # Instructions for coding agents
 ├── package.json
 ├── tsconfig.json
