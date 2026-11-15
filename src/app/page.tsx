@@ -4,6 +4,7 @@ import Image from 'next/image';
 import React, {
   ComponentPropsWithoutRef,
   FormEvent,
+  Fragment,
   ReactNode,
   useCallback,
   useEffect,
@@ -27,6 +28,7 @@ import {
   Eye,
   FileText,
   Globe,
+  Hash,
   Layers,
   Lock,
   type LucideIcon,
@@ -43,12 +45,22 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Terminal,
   UserCheck,
   Wallet,
   Workflow,
   X
 } from 'lucide-react';
 import portrait from '../../public/Freedom_Pic.jpg';
+import {
+  checkRoleAuthorized,
+  type ContactScope,
+  type ContactTimeline,
+  mergeScopedBrief,
+  type RoleId,
+  type SandboxEndpoint,
+  type SandboxRole
+} from '@/lib/portfolio-helpers';
 
 function GithubIcon({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -71,7 +83,6 @@ function GithubIcon({ className = 'h-4 w-4' }: { className?: string }) {
 type ProjectId = 'swiftdrop' | 'northbridge' | 'aura' | 'nairova';
 type ProjectMode = 'impact' | 'architecture' | 'simulation';
 type Theme = 'dark' | 'light';
-type RoleId = 'Customer' | 'Rider' | 'Admin';
 
 interface ProjectMetric {
   value: string;
@@ -119,34 +130,6 @@ interface KpiMetric {
   prefix: string;
   suffix: string;
   label: string;
-}
-
-interface SandboxRole {
-  id: RoleId;
-  userId: string;
-  tenantId: string;
-  scopes: string[];
-}
-
-interface SandboxEndpoint {
-  id: string;
-  method: string;
-  path: string;
-  requiredScope: string;
-  description: string;
-  sqlGuard: string;
-  successResponse: {
-    status: number;
-    statusText: string;
-    tag: string;
-    body: Record<string, string | number | boolean>;
-  };
-  deniedResponse: {
-    status: number;
-    statusText: string;
-    tag: string;
-    body: Record<string, string | number | boolean>;
-  };
 }
 
 interface ServiceItem {
@@ -462,17 +445,6 @@ const KPI_METRICS: KpiMetric[] = [
   { numeric: 3, prefix: '', suffix: '', label: 'Live Vercel Frontends' }
 ];
 
-type ContactScope =
-  | 'Full-Stack Web App'
-  | 'SaaS MVP'
-  | 'Booking / E-Commerce'
-  | 'API & Database Architecture';
-
-type ContactTimeline =
-  | '2–4 Weeks'
-  | '1–2 Months'
-  | 'Full-Time / Ongoing Role';
-
 const CONTACT_SCOPES: ContactScope[] = [
   'Full-Stack Web App',
   'SaaS MVP',
@@ -501,38 +473,6 @@ function getSprintEstimateLabel(
   return scopes.includes('API & Database Architecture') && scopes.length === 1
     ? 'Estimated kickoff: Next Monday · Schema, Auth & REST API Sprint'
     : 'Estimated kickoff: Next Monday · Architecture + MVP Sprint';
-}
-
-const BRIEF_NOTES_MARKER = 'Project Notes:';
-
-function mergeScopedBrief(
-  existingText: string,
-  scopes: ContactScope[],
-  timeline: ContactTimeline
-): string {
-  const header = `Scope: ${scopes.join(' + ')}\nTimeline: ${timeline}`;
-  const trimmed = existingText.trim();
-
-  if (!trimmed) {
-    return `${header}\n\n${BRIEF_NOTES_MARKER}\n`;
-  }
-
-  const markerIndex = existingText.indexOf(BRIEF_NOTES_MARKER);
-  if (markerIndex !== -1) {
-    const preservedNotes = existingText
-      .slice(markerIndex + BRIEF_NOTES_MARKER.length)
-      .replace(/^\r?\n/, '');
-    return `${header}\n\n${BRIEF_NOTES_MARKER}\n${preservedNotes}`;
-  }
-
-  // Strip only an existing structured Scope/Timeline header if user manually tweaked spacing
-  const stripped = trimmed
-    .replace(/^Scope:.*(\r?\nTimeline:.*)?(\r?\n)*/i, '')
-    .trim();
-
-  return stripped
-    ? `${header}\n\n${BRIEF_NOTES_MARKER}\n${stripped}`
-    : `${header}\n\n${BRIEF_NOTES_MARKER}\n`;
 }
 
 interface XRayCallout {
@@ -654,7 +594,7 @@ const SANDBOX_ROLES: SandboxRole[] = [
     id: 'Customer',
     userId: 'usr_cust_8841',
     tenantId: 'role_customer',
-    scopes: ['deliveries:create', 'deliveries:read:own', 'transfers:execute']
+    scopes: ['deliveries:create', 'appointments:book', 'transfers:pin-verify']
   },
   {
     id: 'Rider',
@@ -672,23 +612,63 @@ const SANDBOX_ROLES: SandboxRole[] = [
 
 const SANDBOX_ENDPOINTS: SandboxEndpoint[] = [
   {
-    id: 'POST /api/deliveries',
-    method: 'POST',
-    path: '/api/deliveries',
-    requiredScope: 'deliveries:create',
-    description: 'Create new delivery order (Customer / Admin)',
-    sqlGuard: `INSERT INTO deliveries (id, customer_id, status)
-VALUES (gen_random_uuid(), $1, 'PENDING')
-RETURNING id, status, created_at;`,
+    id: 'POST /api/orders/:id/cash-handoff',
+    project: 'SwiftDrop',
+    requiredScope: 'orders:cash-handoff',
+    description: 'Confirm cash settlement & unlock dispatch (Admin only)',
+    sqlGuard: `const result = await pool.query(
+  \`UPDATE deliveries
+   SET payment_status = 'CONFIRMED', confirmed_by = $1, updated_at = NOW()
+   WHERE id = $2 AND payment_method = 'CASH'
+   RETURNING id, payment_status, status;\`,
+  [req.user.id, req.params.id]
+);`,
+    getDeniedLog: (role) =>
+      `403 Forbidden: Role '${role}' cannot execute Admin cash-gate settlement`,
     successResponse: {
-      status: 201,
-      statusText: '201 CREATED',
+      status: 200,
+      statusText: '200 OK',
       tag: 'SIMULATED',
       body: {
         ok: true,
-        deliveryId: 'dlv_99481a',
-        status: 'PENDING',
-        guard: 'RBAC_SCOPE_VERIFIED'
+        orderId: 'ord_99481a',
+        paymentStatus: 'CONFIRMED',
+        gate: 'ADMIN_SETTLEMENT_VERIFIED'
+      }
+    },
+    deniedResponse: {
+      status: 403,
+      statusText: '403 FORBIDDEN',
+      tag: 'BLOCKED',
+      body: {
+        ok: false,
+        error: 'ForbiddenRoleError',
+        message: 'Requires scope [orders:cash-handoff] (Admin only)'
+      }
+    }
+  },
+  {
+    id: 'POST /api/appointments/book',
+    project: 'Northbridge Health',
+    requiredScope: 'appointments:book',
+    description: 'Book clinical slot with patient ownership check (Customer / Admin)',
+    sqlGuard: `const result = await pool.query(
+  \`INSERT INTO appointments (id, patient_id, slot_at, status)
+   VALUES (gen_random_uuid(), $1, $2, 'CONFIRMED')
+   RETURNING id, patient_id, status;\`,
+  [req.user.id, req.body.slotAt]
+);`,
+    getDeniedLog: (role) =>
+      `403 Forbidden: Role '${role}' lacks scope [appointments:book] for patient booking`,
+    successResponse: {
+      status: 200,
+      statusText: '200 OK',
+      tag: 'SIMULATED',
+      body: {
+        ok: true,
+        appointmentId: 'apt_77120b',
+        status: 'CONFIRMED',
+        guard: 'PATIENT_SCOPE_VERIFIED'
       }
     },
     deniedResponse: {
@@ -698,20 +678,60 @@ RETURNING id, status, created_at;`,
       body: {
         ok: false,
         error: 'RoleMismatchError',
-        message: 'Requires scope [deliveries:create]'
+        message: 'Requires scope [appointments:book]'
+      }
+    }
+  },
+  {
+    id: 'POST /api/transfers/pin-verify',
+    project: 'Nairova',
+    requiredScope: 'transfers:pin-verify',
+    description: 'Verify transaction PIN & run simulated transfer (Customer / Admin)',
+    sqlGuard: `const result = await pool.query(
+  \`SELECT id, balance
+   FROM accounts
+   WHERE user_id = $1 AND pin_hash = crypt($2, pin_hash)
+   FOR UPDATE;\`,
+  [req.user.id, req.body.pin]
+);`,
+    getDeniedLog: (role) =>
+      `403 Forbidden: Role '${role}' cannot verify customer PIN or debit simulated account`,
+    successResponse: {
+      status: 200,
+      statusText: '200 OK',
+      tag: 'SIMULATED',
+      body: {
+        ok: true,
+        txRef: 'TX-SIM-77319',
+        pinVerified: true,
+        ownershipCheck: 'PASSED'
+      }
+    },
+    deniedResponse: {
+      status: 403,
+      statusText: '403 FORBIDDEN',
+      tag: 'BLOCKED',
+      body: {
+        ok: false,
+        error: 'RoleMismatchError',
+        message: 'Requires scope [transfers:pin-verify]'
       }
     }
   },
   {
     id: 'PATCH /api/deliveries/:id/transit',
-    method: 'PATCH',
-    path: '/api/deliveries/:id/transit',
+    project: 'SwiftDrop',
     requiredScope: 'deliveries:advance:transit',
     description: 'Advance assigned parcel to IN_TRANSIT (Rider / Admin)',
-    sqlGuard: `UPDATE deliveries
-SET status = 'IN_TRANSIT', updated_at = NOW()
-WHERE id = $1 AND rider_id = $2
-RETURNING id, status;`,
+    sqlGuard: `const result = await pool.query(
+  \`UPDATE deliveries
+   SET status = 'IN_TRANSIT', updated_at = NOW()
+   WHERE id = $1 AND rider_id = $2
+   RETURNING id, status;\`,
+  [req.params.id, req.user.id]
+);`,
+    getDeniedLog: (role) =>
+      `403 Forbidden: Role '${role}' lacks active Rider assignment scope [deliveries:advance:transit]`,
     successResponse: {
       status: 200,
       statusText: '200 OK',
@@ -733,40 +753,31 @@ RETURNING id, status;`,
         message: 'Requires scope [deliveries:advance:transit]'
       }
     }
-  },
-  {
-    id: 'POST /api/transfers/execute',
-    method: 'POST',
-    path: '/api/transfers/execute',
-    requiredScope: 'transfers:execute',
-    description: 'Simulated P2P account transfer (Customer / Admin)',
-    sqlGuard: `BEGIN;
-SELECT balance FROM accounts WHERE user_id = $1 FOR UPDATE;
-UPDATE accounts SET balance = balance - $2 WHERE user_id = $1;
-COMMIT;`,
-    successResponse: {
-      status: 200,
-      statusText: '200 OK',
-      tag: 'SIMULATED',
-      body: {
-        ok: true,
-        txRef: 'TX-SIM-77319',
-        ownershipCheck: 'PASSED',
-        simulatedAmount: 25000
-      }
-    },
-    deniedResponse: {
-      status: 403,
-      statusText: '403 FORBIDDEN',
-      tag: 'BLOCKED',
-      body: {
-        ok: false,
-        error: 'RoleMismatchError',
-        message: 'Requires scope [transfers:execute]'
-      }
-    }
   }
 ];
+
+type TerminalEasterCommand = 'whoami' | 'ping' | 'stack';
+
+const TERMINAL_EASTER_OUTPUTS: Record<
+  TerminalEasterCommand,
+  { command: string; output: string }
+> = {
+  whoami: {
+    command: 'whoami',
+    output:
+      'Freedom Chukwudi · Full-Stack Engineer (Next.js, TypeScript, Node.js/Express, PostgreSQL) · Based in Abuja, Nigeria (WAT)'
+  },
+  ping: {
+    command: 'ping',
+    output:
+      'Measuring origin RTT... · 3 production Vercel targets configured (SwiftDrop, Northbridge Health, Aura Suites)'
+  },
+  stack: {
+    command: 'stack',
+    output:
+      'Frontend: Next.js 16, React 19, Tailwind v4 | Backend: Node.js, Express, JWT RBAC | DB: PostgreSQL (raw pg pool.query & migrations)'
+  }
+};
 
 // ============================================================================
 // 4. SERVICES & 4-STEP DELIVERY PROCESS DATA
@@ -1144,13 +1155,16 @@ const PROJECT_SCREENSHOTS: Partial<
 
 function ProjectBrowserMockup({
   project,
-  isDark
+  isDark,
+  viewMode,
+  onChangeViewMode
 }: {
   project: Project;
   isDark: boolean;
+  viewMode: 'ui' | 'xray';
+  onChangeViewMode: (mode: 'ui' | 'xray') => void;
 }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'ui' | 'xray'>('ui');
   const frameRef = useRef<HTMLDivElement>(null);
   const tiltRafRef = useRef<number | null>(null);
 
@@ -1349,12 +1363,12 @@ function ProjectBrowserMockup({
           <span className="truncate">{project.domain}</span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar">
           {/* UI | X-Ray Segmented Toggle */}
           <div
             role="group"
             aria-label={`${project.title} preview mode`}
-            className={`inline-flex items-center rounded-lg border p-0.5 font-mono text-[10px] ${
+            className={`inline-flex shrink-0 items-center rounded-lg border p-0.5 font-mono text-[10px] ${
               isDark
                 ? 'border-white/[0.1] bg-[#07090F]'
                 : 'border-slate-200 bg-white'
@@ -1363,8 +1377,8 @@ function ProjectBrowserMockup({
             <button
               type="button"
               aria-pressed={viewMode === 'ui'}
-              onClick={() => setViewMode('ui')}
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold transition ${
+              onClick={() => onChangeViewMode('ui')}
+              className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 font-semibold transition ${
                 viewMode === 'ui'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : isDark
@@ -1378,8 +1392,8 @@ function ProjectBrowserMockup({
             <button
               type="button"
               aria-pressed={viewMode === 'xray'}
-              onClick={() => setViewMode('xray')}
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold transition ${
+              onClick={() => onChangeViewMode('xray')}
+              className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 font-semibold transition ${
                 viewMode === 'xray'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : isDark
@@ -1397,7 +1411,7 @@ function ProjectBrowserMockup({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${project.title} (${project.domain}) in a new tab`}
-            className={`inline-flex h-6 w-6 items-center justify-center rounded-md border transition ${
+            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${
               isDark
                 ? 'border-blue-500/30 bg-blue-500/15 text-blue-400 hover:border-blue-400 hover:bg-blue-600 hover:text-white'
                 : 'border-blue-200 bg-blue-50 text-blue-600 hover:border-blue-600 hover:bg-blue-600 hover:text-white'
@@ -1488,7 +1502,6 @@ interface HeroReelCard {
   domain: string;
   href: string;
   imageSrc?: string;
-  objectPosition?: string;
   fallbackVariant: 'nairova-wallet' | 'nairova-ledger' | 'swiftdrop' | 'northbridge' | 'aura';
 }
 
@@ -1696,9 +1709,9 @@ function HeroDualPreviewReel({ isDark }: { isDark: boolean }) {
   };
 
   return (
-    <div className="reel-wrapper relative h-[580px] w-full overflow-y-hidden overflow-x-visible xl:h-[640px]">
+    <div className="reel-wrapper relative h-[380px] w-full overflow-y-hidden overflow-x-visible sm:h-[480px] lg:h-[620px]">
       <div
-        className="reel-edge-mask h-full w-full overflow-y-hidden overflow-x-visible px-2 py-4 sm:px-4"
+        className="reel-edge-mask h-full w-full overflow-y-hidden overflow-x-visible px-1 py-3 sm:px-4 sm:py-4"
         style={{
           maskImage:
             'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
@@ -1706,10 +1719,10 @@ function HeroDualPreviewReel({ isDark }: { isDark: boolean }) {
             'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)'
         }}
       >
-        <div className="reel-tilt-grid grid h-full w-[108%] grid-cols-2 gap-4 sm:gap-5">
+        <div className="reel-tilt-grid grid h-full w-full grid-cols-2 gap-3 sm:gap-5 lg:w-[108%]">
           {/* Column 1 scrolling UP */}
           <div className="reel-column">
-            <div className="animate-reel-up space-y-4 sm:space-y-5">
+            <div className="animate-reel-up space-y-3 sm:space-y-5">
               {[...columnUpCards, ...columnUpCards].map((c, idx) =>
                 renderReelCard(c, `up-${idx}`)
               )}
@@ -1717,8 +1730,8 @@ function HeroDualPreviewReel({ isDark }: { isDark: boolean }) {
           </div>
 
           {/* Column 2 scrolling DOWN (vertically offset) */}
-          <div className="reel-column -mt-12">
-            <div className="animate-reel-down space-y-4 sm:space-y-5">
+          <div className="reel-column -mt-8 sm:-mt-12">
+            <div className="animate-reel-down space-y-3 sm:space-y-5">
               {[...columnDownCards, ...columnDownCards].map((c, idx) =>
                 renderReelCard(c, `down-${idx}`)
               )}
@@ -1729,16 +1742,16 @@ function HeroDualPreviewReel({ isDark }: { isDark: boolean }) {
 
       {/* Frosted-Glass Floating Badge in Bottom-Left Corner */}
       <div
-        className={`absolute bottom-4 left-4 z-30 flex items-center gap-2.5 rounded-xl border px-3.5 py-2 shadow-xl backdrop-blur-md ${
+        className={`absolute bottom-3 left-3 z-30 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs shadow-xl backdrop-blur-md sm:bottom-4 sm:left-4 sm:gap-2.5 sm:px-3.5 ${
           isDark
             ? 'border-white/[0.14] bg-[#0D1017]/90 text-white'
             : 'border-slate-200 bg-white/95 text-slate-900'
         }`}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 font-display text-xs font-extrabold text-white">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-600 font-display text-xs font-extrabold text-white sm:h-7 sm:w-7">
           4
         </span>
-        <div className="text-[11px] leading-tight">
+        <div className="text-[11px] leading-tight sm:text-xs">
           <div className="font-semibold">4 Shipped projects</div>
           <div className={isDark ? 'text-slate-400' : 'text-slate-600'}>
             3 Live on Vercel
@@ -1814,6 +1827,34 @@ function AnimatedBrushUnderline() {
   );
 }
 
+function SectionAnchorButton({
+  sectionId,
+  label,
+  onCopy,
+  isDark
+}: {
+  sectionId: string;
+  label: string;
+  onCopy: (sectionId: string) => void;
+  isDark: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onCopy(sectionId)}
+      aria-label={`Copy link to ${label} section`}
+      title={`Copy #${sectionId} link`}
+      className={`ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border align-middle opacity-70 transition hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 sm:group-hover/heading:opacity-100 ${
+        isDark
+          ? 'border-white/[0.12] bg-[#0D1017] text-slate-400 hover:border-blue-500/50 hover:text-blue-400'
+          : 'border-slate-200 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600'
+      }`}
+    >
+      <Hash className="h-4 w-4" />
+    </button>
+  );
+}
+
 // ============================================================================
 // 12. MAIN APPLICATION COMPONENT
 // ============================================================================
@@ -1844,12 +1885,28 @@ export default function Home() {
     nairova: 'impact'
   });
   const [projectSimStep, setProjectSimStep] = useState<Partial<Record<ProjectId, number>>>({});
+  const simTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Interactive 3-column RBAC & PostgreSQL Sandbox state
-  const [selectedRole, setSelectedRole] = useState<RoleId>('Customer');
-  const [selectedEndpoint, setSelectedEndpoint] = useState('POST /api/deliveries');
+  const [selectedRole, setSelectedRole] = useState<RoleId>('Admin');
+  const [selectedEndpoint, setSelectedEndpoint] = useState(
+    'POST /api/orders/:id/cash-handoff'
+  );
   const [sandboxExecuted, setSandboxExecuted] = useState(true);
   const [sandboxRunning, setSandboxRunning] = useState(false);
+  const [traceStage, setTraceStage] = useState<1 | 2 | 3 | 4>(4);
+  const traceTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Per-project UI / X-Ray preview mode (lifted so Cmd+K can toggle all 4)
+  const [previewModes, setPreviewModes] = useState<Record<ProjectId, 'ui' | 'xray'>>({
+    swiftdrop: 'ui',
+    northbridge: 'ui',
+    nairova: 'ui',
+    aura: 'ui'
+  });
+
+  // Mobile navigation drawer state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Hero Engineering Telemetry pill state
   const [telemetryOpen, setTelemetryOpen] = useState(false);
@@ -1872,10 +1929,17 @@ export default function Home() {
   // Modals, clipboard & toast state
   const [resumeOpen, setResumeOpen] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
+  const [toastState, setToastState] = useState<{ message: string; nonce: number }>({
+    message: '',
+    nonce: 0
+  });
+  const toastMessage = toastState.message;
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
   const [cmdSelectedIndex, setCmdSelectedIndex] = useState(0);
+  const [activeTerminalCmd, setActiveTerminalCmd] =
+    useState<TerminalEasterCommand | null>(null);
+  const [pingResult, setPingResult] = useState<string | null>(null);
 
   const email = 'editorfreedom@gmail.com';
 
@@ -1916,11 +1980,64 @@ export default function Home() {
     };
   }, []);
 
+  // Tab-visibility document title hook
+  useEffect(() => {
+    const defaultTitle = 'Freedom Chukwudi — Full-Stack Engineer';
+    const awayTitle = '👋 Still building — Freedom Chukwudi';
+    const handleVisibility = () => {
+      document.title = document.hidden ? awayTitle : defaultTitle;
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      document.title = defaultTitle;
+    };
+  }, []);
+
+  // Lock background scroll while mobile navigation drawer is open
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  // Close mobile navigation drawer automatically above desktop breakpoint (1024px)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const handleMediaChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileMenuOpen(false);
+    };
+    mql.addEventListener('change', handleMediaChange);
+    return () => mql.removeEventListener('change', handleMediaChange);
+  }, []);
+
+  // Clear pending trace and walkthrough timers on unmount
+  useEffect(() => {
+    const traceTimers = traceTimersRef.current;
+    const simTimers = simTimersRef.current;
+    return () => {
+      traceTimers.forEach((timer) => clearTimeout(timer));
+      simTimers.forEach((timer) => clearTimeout(timer));
+    };
+  }, []);
+
+  // Auto-dismiss toast notifications after 2.2s
+  useEffect(() => {
+    if (!toastState.message) return;
+    const timer = setTimeout(() => {
+      setToastState((prev) =>
+        prev.nonce === toastState.nonce ? { message: '', nonce: prev.nonce } : prev
+      );
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [toastState.message, toastState.nonce]);
+
   const triggerToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((prev) => (prev === msg ? '' : prev));
-    }, 2800);
+    setToastState((prev) => ({ message: msg, nonce: prev.nonce + 1 }));
   }, []);
 
   // Close Hero telemetry popover on outside click
@@ -1945,20 +2062,89 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [copiedEmail]);
 
-  const handleCopyEmail = useCallback(() => {
-    navigator.clipboard?.writeText(email);
-    setCopiedEmail(true);
-    triggerToast(`Copied ${email} to clipboard`);
+  const handleCopyEmail = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      triggerToast('Clipboard unavailable — copy manually');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedEmail(true);
+      triggerToast(`Copied ${email} to clipboard`);
+    } catch {
+      triggerToast('Clipboard unavailable — copy manually');
+    }
   }, [email, triggerToast]);
 
   const scrollToSection = useCallback((id: string) => {
     setCmdOpen(false);
+    setActiveTerminalCmd(null);
+    setPingResult(null);
+    setMobileMenuOpen(false);
     setCmdSelectedIndex(0);
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   }, []);
+
+  const handleCopySectionLink = useCallback(
+    async (sectionId: string) => {
+      if (
+        typeof window === 'undefined' ||
+        typeof navigator === 'undefined' ||
+        !navigator.clipboard?.writeText
+      ) {
+        triggerToast('Clipboard unavailable — copy manually');
+        return;
+      }
+      try {
+        const url = `${window.location.origin}/#${sectionId}`;
+        await navigator.clipboard.writeText(url);
+        triggerToast('Link copied to clipboard');
+      } catch {
+        triggerToast('Clipboard unavailable — copy manually');
+      }
+    },
+    [triggerToast]
+  );
+
+  const runPingCheck = useCallback(async () => {
+    setActiveTerminalCmd('ping');
+    setPingResult(
+      'Measuring origin RTT... · 3 production Vercel targets configured (SwiftDrop, Northbridge Health, Aura Suites)'
+    );
+    try {
+      const start = performance.now();
+      await fetch('/', { method: 'HEAD', cache: 'no-store' });
+      const rtt = Math.max(1, Math.round(performance.now() - start));
+      setPingResult(
+        `PONG · Origin RTT ${rtt}ms · 3 production Vercel targets configured (SwiftDrop, Northbridge Health, Aura Suites)`
+      );
+    } catch {
+      setPingResult(
+        'PONG · Origin RTT unavailable · 3 production Vercel targets configured (SwiftDrop, Northbridge Health, Aura Suites)'
+      );
+    }
+  }, []);
+
+  const handleToggleAllXRay = useCallback(() => {
+    const allXray = Object.values(previewModes).every((mode) => mode === 'xray');
+    const nextMode: 'ui' | 'xray' = allXray ? 'ui' : 'xray';
+    setPreviewModes({
+      swiftdrop: nextMode,
+      northbridge: nextMode,
+      nairova: nextMode,
+      aura: nextMode
+    });
+    triggerToast(
+      nextMode === 'xray'
+        ? 'X-Ray architecture mode enabled on all previews'
+        : 'UI preview mode restored on all projects'
+    );
+    setCmdOpen(false);
+    setActiveTerminalCmd(null);
+  }, [previewModes, triggerToast]);
 
   // Toggle project architecture drawer and align card when switching from sticky to normal flow
   const handleToggleArchitecture = (projectId: ProjectId) => {
@@ -1976,11 +2162,27 @@ export default function Home() {
 
   // Run project flow simulation
   const runProjectSimulation = (projectId: ProjectId, totalSteps: number) => {
+    simTimersRef.current.forEach((timer) => clearTimeout(timer));
+    simTimersRef.current.length = 0;
+
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReduced) {
+      setProjectSimStep((prev) => ({
+        ...prev,
+        [projectId]: Math.max(0, totalSteps - 1)
+      }));
+      return;
+    }
+
     setProjectSimStep((prev) => ({ ...prev, [projectId]: 0 }));
     for (let i = 1; i < totalSteps; i++) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setProjectSimStep((prev) => ({ ...prev, [projectId]: i }));
       }, i * 350);
+      simTimersRef.current.push(timer);
     }
   };
 
@@ -1997,19 +2199,65 @@ export default function Home() {
     [selectedEndpoint]
   );
 
-  const isSandboxAuthorized = useMemo(() => {
-    if (activeRoleObj.scopes.includes('*')) return true;
-    return activeRoleObj.scopes.includes(activeEndpointObj.requiredScope);
-  }, [activeRoleObj, activeEndpointObj]);
+  const isSandboxAuthorized = useMemo(
+    () =>
+      checkRoleAuthorized(
+        SANDBOX_ROLES,
+        SANDBOX_ENDPOINTS,
+        selectedRole,
+        selectedEndpoint
+      ),
+    [selectedRole, selectedEndpoint]
+  );
 
-  const handleExecuteSandbox = () => {
-    setSandboxRunning(true);
-    setSandboxExecuted(false);
-    setTimeout(() => {
-      setSandboxRunning(false);
-      setSandboxExecuted(true);
-    }, 320);
-  };
+  const handleExecuteSandbox = useCallback(
+    (nextRole?: RoleId, nextEndpoint?: string) => {
+      const targetRole = nextRole ?? selectedRole;
+      const targetEndpoint = nextEndpoint ?? selectedEndpoint;
+      const authorized = checkRoleAuthorized(
+        SANDBOX_ROLES,
+        SANDBOX_ENDPOINTS,
+        targetRole,
+        targetEndpoint
+      );
+
+      traceTimersRef.current.forEach((timer) => clearTimeout(timer));
+      traceTimersRef.current.length = 0;
+
+      const prefersReduced =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (prefersReduced) {
+        setSandboxRunning(false);
+        setSandboxExecuted(true);
+        setTraceStage(authorized ? 4 : 3);
+        return;
+      }
+
+      setSandboxRunning(true);
+      setSandboxExecuted(false);
+      setTraceStage(1);
+
+      const t1 = setTimeout(() => setTraceStage(2), 180);
+      const t2 = setTimeout(() => setTraceStage(3), 380);
+      if (authorized) {
+        const t3 = setTimeout(() => setTraceStage(4), 600);
+        const t4 = setTimeout(() => {
+          setSandboxRunning(false);
+          setSandboxExecuted(true);
+        }, 780);
+        traceTimersRef.current.push(t1, t2, t3, t4);
+      } else {
+        const t3 = setTimeout(() => {
+          setSandboxRunning(false);
+          setSandboxExecuted(true);
+        }, 560);
+        traceTimersRef.current.push(t1, t2, t3);
+      }
+    },
+    [selectedEndpoint, selectedRole]
+  );
 
   // 2-Minute Project Scoper handlers (update brief header while preserving custom user notes)
   const handleToggleScope = (scope: ContactScope) => {
@@ -2045,6 +2293,43 @@ export default function Home() {
   const commandActions = useMemo<CommandAction[]>(() => {
     const base: CommandAction[] = [
       {
+        id: 'toggle-all-xray',
+        label: 'Toggle X-Ray Mode on All Projects',
+        hint: 'All 4 Previews',
+        icon: Layers,
+        action: handleToggleAllXRay
+      },
+      {
+        id: 'term-whoami',
+        label: 'whoami — Engineer identity & location',
+        hint: 'Terminal',
+        icon: Terminal,
+        action: () => setActiveTerminalCmd('whoami')
+      },
+      {
+        id: 'term-ping',
+        label: 'ping — Origin RTT & configured deployment targets',
+        hint: 'Terminal',
+        icon: Terminal,
+        action: () => {
+          void runPingCheck();
+        }
+      },
+      {
+        id: 'term-stack',
+        label: 'stack — Production runtime & database stack',
+        hint: 'Terminal',
+        icon: Terminal,
+        action: () => setActiveTerminalCmd('stack')
+      },
+      {
+        id: 'term-hire',
+        label: 'hire — Jump straight to Contact & Project Inquiry',
+        hint: 'Terminal',
+        icon: Mail,
+        action: () => scrollToSection('contact')
+      },
+      {
         id: 'toggle-theme',
         label: `Switch to ${isDark ? 'Light' : 'Dark'} Mode`,
         hint: 'Theme',
@@ -2060,7 +2345,7 @@ export default function Home() {
         hint: 'Clipboard',
         icon: Copy,
         action: () => {
-          handleCopyEmail();
+          void handleCopyEmail();
           setCmdOpen(false);
         }
       },
@@ -2089,11 +2374,11 @@ export default function Home() {
         action: () => scrollToSection('sandbox')
       },
       {
-        id: 'nav-services',
+        id: 'nav-capabilities',
         label: 'Jump to Capabilities & Build Process',
         hint: 'Section',
         icon: Layers,
-        action: () => scrollToSection('services')
+        action: () => scrollToSection('capabilities')
       },
       {
         id: 'nav-about',
@@ -2164,19 +2449,37 @@ export default function Home() {
         item.label.toLowerCase().includes(cmdQuery.toLowerCase()) ||
         item.hint.toLowerCase().includes(cmdQuery.toLowerCase())
     );
-  }, [cmdQuery, email, handleCopyEmail, isDark, scrollToSection]);
+  }, [
+    cmdQuery,
+    email,
+    handleCopyEmail,
+    handleToggleAllXRay,
+    isDark,
+    runPingCheck,
+    scrollToSection
+  ]);
 
   // Global keyboard shortcuts (Cmd+K / Ctrl+K + Arrow navigation)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setCmdOpen((prev) => !prev);
+        setCmdOpen((prev) => {
+          const next = !prev;
+          if (!next) {
+            setActiveTerminalCmd(null);
+            setPingResult(null);
+          }
+          return next;
+        });
         setCmdSelectedIndex(0);
         return;
       }
       if (e.key === 'Escape') {
         setCmdOpen(false);
+        setActiveTerminalCmd(null);
+        setPingResult(null);
+        setMobileMenuOpen(false);
         setResumeOpen(false);
         setTelemetryOpen(false);
         setTelemetryPinned(false);
@@ -2196,24 +2499,65 @@ export default function Home() {
             ? (prev - 1 + commandActions.length) % commandActions.length
             : 0
         );
-      } else if (e.key === 'Enter' && commandActions[cmdSelectedIndex]) {
-        e.preventDefault();
-        commandActions[cmdSelectedIndex].action();
+      } else if (e.key === 'Enter') {
+        const normalized = cmdQuery.trim().toLowerCase();
+        if (normalized === 'whoami' || normalized === 'stack') {
+          e.preventDefault();
+          setActiveTerminalCmd(normalized);
+          return;
+        }
+        if (normalized === 'ping') {
+          e.preventDefault();
+          void runPingCheck();
+          return;
+        }
+        if (normalized === 'hire') {
+          e.preventDefault();
+          scrollToSection('contact');
+          return;
+        }
+        if (commandActions[cmdSelectedIndex]) {
+          e.preventDefault();
+          commandActions[cmdSelectedIndex].action();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cmdOpen, commandActions, cmdSelectedIndex]);
+  }, [
+    cmdOpen,
+    cmdQuery,
+    commandActions,
+    cmdSelectedIndex,
+    runPingCheck,
+    scrollToSection
+  ]);
 
   return (
     <div
-      className={`min-h-screen font-sans antialiased transition-colors duration-300 selection:bg-blue-600/25 ${
+      className={`min-h-screen overflow-x-clip font-sans antialiased transition-colors duration-300 selection:bg-blue-600/25 ${
         isDark
-          ? 'bg-[#06070B] text-slate-100 selection:text-blue-200'
+          ? 'bg-[#070A10] text-slate-100 selection:text-blue-200'
           : 'bg-[#F8FAFC] text-slate-900 selection:text-blue-900'
       }`}
     >
+      {/* Subtle Film Grain Overlay */}
+      <svg
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-50 h-full w-full opacity-[0.022]"
+      >
+        <filter id="portfolio-film-grain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.8"
+            numOctaves={3}
+            stitchTiles="stitch"
+          />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#portfolio-film-grain)" />
+      </svg>
+
       {/* Subtle Grid & Radial Glow Backdrop */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div
@@ -2246,11 +2590,11 @@ export default function Home() {
           aria-live="polite"
           className={`fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-xl border px-4 py-2.5 font-mono text-xs shadow-2xl backdrop-blur-md ${
             isDark
-              ? 'border-blue-500/35 bg-[#0D1017]/95 text-blue-300'
-              : 'border-blue-200 bg-white/95 text-blue-700'
+              ? 'border-emerald-500/35 bg-[#0D1017]/95 text-emerald-200'
+              : 'border-emerald-200 bg-white/95 text-emerald-800'
           }`}
         >
-          <CheckCircle2 className="h-4 w-4 text-blue-500" />
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -2261,11 +2605,11 @@ export default function Home() {
       <header
         className={`sticky top-0 z-40 border-b backdrop-blur-xl transition-colors ${
           isDark
-            ? 'border-white/[0.08] bg-[#06070B]/80'
+            ? 'border-white/[0.08] bg-[#070A10]/85'
             : 'border-slate-200/80 bg-[#F8FAFC]/85'
         }`}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           {/* Brand Emblem ('F') + Name */}
           <a href="#" className="group flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 font-display text-sm font-extrabold text-white shadow-md shadow-blue-600/25 transition group-hover:bg-blue-500">
@@ -2285,10 +2629,10 @@ export default function Home() {
             </div>
           </a>
 
-          {/* Center Navigation Links */}
+          {/* Center Navigation Links (Desktop >= 1024px) */}
           <nav
             aria-label="Primary navigation"
-            className={`hidden items-center gap-7 text-sm font-medium md:flex ${
+            className={`hidden items-center gap-7 text-sm font-medium lg:flex ${
               isDark ? 'text-slate-400' : 'text-slate-600'
             }`}
           >
@@ -2308,7 +2652,7 @@ export default function Home() {
             </button>
             <button
               type="button"
-              onClick={() => scrollToSection('services')}
+              onClick={() => scrollToSection('capabilities')}
               className={`transition ${isDark ? 'hover:text-white' : 'hover:text-slate-950'}`}
             >
               Capabilities
@@ -2329,13 +2673,13 @@ export default function Home() {
             </button>
           </nav>
 
-          {/* Right Controls: Theme Toggle, Cmd+K, Start a Project Pill */}
+          {/* Right Controls: Theme Toggle, Compact Cmd+K, Desktop CTAs & Mobile Hamburger */}
           <div className="flex items-center gap-2">
             {/* Dark/Light Theme Toggle */}
             <button
               type="button"
               onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-              className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+              className={`flex h-10 w-10 items-center justify-center rounded-full border transition lg:h-9 lg:w-9 ${
                 isDark
                   ? 'border-white/[0.1] bg-[#0D1017] text-slate-300 hover:border-blue-500/40 hover:text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-slate-950'
@@ -2346,58 +2690,203 @@ export default function Home() {
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
-            {/* Command Palette Trigger */}
+            {/* Command Palette Trigger (Compact icon on <1024px, Cmd+K pill on desktop) */}
             <button
               type="button"
               onClick={() => {
+                setMobileMenuOpen(false);
+                setActiveTerminalCmd(null);
                 setCmdSelectedIndex(0);
                 setCmdOpen(true);
               }}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-xs transition ${
+              className={`flex h-10 w-10 items-center justify-center gap-1.5 rounded-full border font-mono text-xs transition lg:h-9 lg:w-auto lg:px-3 lg:py-1.5 ${
                 isDark
                   ? 'border-white/[0.1] bg-[#0D1017] text-slate-300 hover:border-blue-500/40 hover:text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-slate-950'
               }`}
               aria-label="Open Command Palette"
+              title="Command Palette (⌘K)"
             >
-              <Command className="h-3.5 w-3.5 text-blue-500" />
-              <span className="hidden sm:inline">⌘K</span>
+              <Command className="h-4 w-4 text-blue-500 lg:h-3.5 lg:w-3.5" />
+              <span className="hidden lg:inline">⌘K</span>
             </button>
 
-            {/* Resume Modal Trigger */}
-            <button
-              type="button"
-              onClick={() => setResumeOpen(true)}
-              className={`hidden items-center gap-1 rounded-full border px-3.5 py-2 text-xs font-semibold transition sm:inline-flex ${
-                isDark
-                  ? 'border-white/[0.12] bg-[#0D1017] text-slate-200 hover:border-blue-500/40 hover:text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-slate-950'
-              }`}
-            >
-              <span>Resume</span>
-              <ArrowUpRight className="h-3.5 w-3.5 text-blue-500" />
-            </button>
-
-            {/* Primary Pill CTA */}
-            <MagneticElement strength={0.22}>
+            {/* Desktop Secondary + Primary Actions (>= 1024px) */}
+            <div className="hidden items-center gap-2 lg:flex">
               <button
                 type="button"
-                onClick={() => scrollToSection('contact')}
-                className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 sm:text-sm"
+                onClick={() => setResumeOpen(true)}
+                className={`inline-flex items-center gap-1 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                  isDark
+                    ? 'border-white/[0.12] bg-[#0D1017] text-slate-200 hover:border-blue-500/40 hover:text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-slate-950'
+                }`}
               >
-                <span>Get in touch</span>
-                <ArrowUpRight className="h-3.5 w-3.5" />
+                <span>Resume</span>
+                <ArrowUpRight className="h-3.5 w-3.5 text-blue-500" />
               </button>
-            </MagneticElement>
+
+              <MagneticElement strength={0.22}>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection('contact')}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 xl:text-sm"
+                >
+                  <span>Get in touch</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+              </MagneticElement>
+            </div>
+
+            {/* Mobile/Tablet Hamburger Button (< 1024px, 44x44px touch target) */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-nav-drawer"
+              aria-label="Toggle navigation menu"
+              className={`flex h-11 w-11 items-center justify-center rounded-xl border transition lg:hidden ${
+                isDark
+                  ? 'border-white/[0.12] bg-[#0D1017] text-slate-200 hover:border-blue-500/40'
+                  : 'border-slate-200 bg-white text-slate-800 hover:border-blue-400'
+              }`}
+            >
+              <span className="relative flex h-4 w-5 flex-col items-center justify-center">
+                <span
+                  className={`absolute h-[1.5px] w-5 rounded-full transition-all duration-200 ${
+                    isDark ? 'bg-slate-200' : 'bg-slate-800'
+                  } ${
+                    mobileMenuOpen
+                      ? 'translate-y-0 rotate-45'
+                      : '-translate-y-[4px] rotate-0'
+                  }`}
+                />
+                <span
+                  className={`absolute h-[1.5px] w-5 rounded-full transition-all duration-200 ${
+                    isDark ? 'bg-slate-200' : 'bg-slate-800'
+                  } ${
+                    mobileMenuOpen
+                      ? 'translate-y-0 -rotate-45'
+                      : 'translate-y-[4px] rotate-0'
+                  }`}
+                />
+              </span>
+            </button>
           </div>
         </div>
+
+        {/* Slide-Down Frosted-Glass Mobile/Tablet Navigation Drawer (< 1024px) */}
+        {mobileMenuOpen && (
+          <>
+            <div
+              aria-hidden="true"
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-x-0 bottom-0 top-[68px] z-30 bg-black/55 backdrop-blur-xs lg:hidden"
+            />
+            <div
+              id="mobile-nav-drawer"
+              role="dialog"
+              aria-label="Mobile navigation menu"
+              className={`relative z-40 max-h-[calc(100dvh-4.25rem)] overflow-y-auto overscroll-contain border-b backdrop-blur-xl lg:hidden ${
+                isDark
+                  ? 'border-white/10 bg-[#070A10]/95 text-slate-100'
+                  : 'border-slate-200 bg-white/95 text-slate-900'
+              }`}
+            >
+              <div className="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6">
+                <nav aria-label="Mobile primary navigation" className="grid gap-1.5">
+                  {[
+                    { id: 'work', label: 'Work', tag: '01' },
+                    { id: 'sandbox', label: 'Sandbox', tag: '02' },
+                    { id: 'capabilities', label: 'Capabilities', tag: '03' },
+                    { id: 'about', label: 'About', tag: '04' },
+                    { id: 'contact', label: 'Contact', tag: '05' }
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => scrollToSection(item.id)}
+                      className={`flex min-h-[44px] w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-base font-medium transition ${
+                        isDark
+                          ? 'hover:bg-white/[0.06] hover:text-white'
+                          : 'hover:bg-slate-100 hover:text-slate-950'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <span className="font-mono text-[11px] text-slate-500">
+                        {item.tag}
+                      </span>
+                    </button>
+                  ))}
+                </nav>
+
+                <div
+                  className={`grid grid-cols-1 gap-2.5 border-t pt-4 sm:grid-cols-2 ${
+                    isDark ? 'border-white/10' : 'border-slate-200'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setResumeOpen(true);
+                    }}
+                    className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      isDark
+                        ? 'border-white/15 bg-[#0D1017] text-slate-100 hover:border-blue-500/40'
+                        : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-blue-400'
+                    }`}
+                  >
+                    <span>View Resume</span>
+                    <ArrowUpRight className="h-4 w-4 text-blue-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection('contact')}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
+                  >
+                    <span>Get in touch</span>
+                    <ArrowUpRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Live WAT Status Indicator */}
+                <div
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 font-mono text-[11px] ${
+                    isDark
+                      ? 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-2 font-semibold">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                    </span>
+                    Available for Q4/Q1 builds
+                  </span>
+                  <span className="tabular-nums opacity-85">
+                    Abuja · {watTime || 'UTC+1'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </header>
 
       <main id="main" className="relative z-10 pb-24 pt-10 sm:pt-14">
         {/* =================================================================== */}
         {/* 2. KINETIC HERO SECTION (CYCLING SERIF VERB + 3D BROWSER REEL)     */}
         {/* =================================================================== */}
-        <section className="mx-auto grid max-w-[1380px] grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_1.25fr] lg:gap-10">
+        <section className="relative mx-auto grid max-w-[1380px] grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_1.25fr] lg:gap-12">
+          {/* Architectural Dot-Matrix Radial Mask Behind Hero */}
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute -inset-x-6 -top-10 -bottom-6 -z-10 ${
+              isDark ? 'bg-dot-matrix opacity-80' : 'bg-dot-matrix-light opacity-85'
+            }`}
+          />
           {/* Left Column */}
           <div className="relative z-30">
             {/* Live Engineering Telemetry Pill + Frosted Frosted-Glass Popover */}
@@ -2549,12 +3038,12 @@ export default function Home() {
 
             {/* Bold Inter Headline + Cycling Blue Italic Instrument Serif Word */}
             <h1
-              className={`animate-hero-2 font-display mt-6 text-4xl font-extrabold sm:text-6xl lg:text-[64px] lg:leading-[1.03] ${
+              className={`animate-hero-2 font-display mt-6 text-4xl font-extrabold sm:text-5xl lg:text-6xl lg:leading-[1.03] ${
                 isDark ? 'text-white' : 'text-slate-950'
               }`}
             >
               I build full-stack web apps that{' '}
-              <span className="relative inline-block min-w-[170px] sm:min-w-[235px]">
+              <span className="relative inline-block min-w-[145px] sm:min-w-[225px]">
                 <span
                   key={ROTATING_VERBS[verbIndex]}
                   className="animate-verb-swap font-serif-italic relative inline-block bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 bg-clip-text pb-1.5 pr-3 text-[1.12em] text-transparent"
@@ -2676,10 +3165,10 @@ export default function Home() {
         {/* =================================================================== */}
         <section className="mx-auto mt-12 max-w-6xl px-4 sm:px-6">
           <div
-            className={`grid grid-cols-2 divide-y rounded-2xl border sm:grid-cols-4 sm:divide-x sm:divide-y-0 ${
+            className={`grid grid-cols-2 rounded-2xl border lg:grid-cols-4 [&>*:nth-child(odd)]:border-r [&>*:nth-child(-n+2)]:border-b lg:[&>*]:border-b-0 lg:[&>*:not(:last-child)]:border-r ${
               isDark
-                ? 'divide-white/[0.08] border-white/[0.09] bg-[#0D1017]/80'
-                : 'divide-slate-200 border-slate-200 bg-white shadow-sm'
+                ? 'border-white/[0.09] bg-[#0D1017]/80 [&>*]:border-white/[0.08]'
+                : 'border-slate-200 bg-white shadow-sm [&>*]:border-slate-200'
             }`}
           >
             {KPI_METRICS.map((metric) => (
@@ -2750,14 +3239,22 @@ export default function Home() {
                   SELECTED WORK
                 </div>
                 <h2
-                  className={`font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-5xl ${
+                  className={`group/heading font-display mt-2 flex flex-wrap items-center gap-2.5 text-3xl font-extrabold tracking-tight sm:text-5xl ${
                     isDark ? 'text-white' : 'text-slate-950'
                   }`}
                 >
-                  Shipped, live,{' '}
-                  <span className="font-serif-italic pr-2 text-blue-500">
-                    used.
+                  <span>
+                    Shipped, live,{' '}
+                    <span className="font-serif-italic pr-2 text-blue-500">
+                      used.
+                    </span>
                   </span>
+                  <SectionAnchorButton
+                    sectionId="work"
+                    label="Selected Work"
+                    onCopy={handleCopySectionLink}
+                    isDark={isDark}
+                  />
                 </h2>
               </div>
               <p
@@ -2786,10 +3283,10 @@ export default function Home() {
                   : project.architecture.simulationSteps.length - 1;
 
               const stickyStackClasses = [
-                'sticky top-[88px] z-10',
-                'sticky top-[106px] z-20',
-                'sticky top-[124px] z-30',
-                'sticky top-[142px] z-40'
+                'static md:sticky md:top-[88px] md:z-10',
+                'static md:sticky md:top-[106px] md:z-20',
+                'static md:sticky md:top-[124px] md:z-30',
+                'static md:sticky md:top-[142px] md:z-40'
               ];
 
               return (
@@ -2799,7 +3296,8 @@ export default function Home() {
                   className={`${
                     hasExpandedProject
                       ? 'relative z-10'
-                      : stickyStackClasses[idx] || 'sticky top-[142px] z-40'
+                      : stickyStackClasses[idx] ||
+                        'static md:sticky md:top-[142px] md:z-40'
                   } scroll-mt-24`}
                 >
                   <SpotlightCard
@@ -2840,7 +3338,7 @@ export default function Home() {
                         </p>
 
                         {/* 3 Bold Mini-Metrics */}
-                        <div className="mt-5 grid grid-cols-3 gap-3">
+                        <div className="mt-5 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-3 sm:gap-3">
                           {project.metrics.map((m) => (
                             <div
                               key={m.label}
@@ -2930,8 +3428,18 @@ export default function Home() {
                       </div>
 
                       {/* Right Column: Framed macOS Browser Window Preview (6 Cols) */}
-                      <div className="lg:col-span-6">
-                        <ProjectBrowserMockup project={project} isDark={isDark} />
+                      <div className="min-w-0 lg:col-span-6">
+                        <ProjectBrowserMockup
+                          project={project}
+                          isDark={isDark}
+                          viewMode={previewModes[project.id] || 'ui'}
+                          onChangeViewMode={(mode) =>
+                            setPreviewModes((prev) => ({
+                              ...prev,
+                              [project.id]: mode
+                            }))
+                          }
+                        />
                       </div>
                     </div>
 
@@ -2951,7 +3459,7 @@ export default function Home() {
                           </div>
 
                           <div
-                            className={`flex flex-wrap rounded-xl border p-1 font-mono text-xs ${
+                            className={`no-scrollbar flex max-w-full flex-nowrap items-center overflow-x-auto whitespace-nowrap rounded-xl border p-1 font-mono text-xs ${
                               isDark
                                 ? 'border-white/[0.08] bg-[#0D1017]'
                                 : 'border-slate-200 bg-white'
@@ -2965,7 +3473,7 @@ export default function Home() {
                                   [project.id]: 'impact'
                                 }))
                               }
-                              className={`rounded-lg px-3 py-1.5 transition ${
+                              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 transition ${
                                 currentMode === 'impact'
                                   ? 'bg-blue-600 text-white'
                                   : isDark
@@ -2983,7 +3491,7 @@ export default function Home() {
                                   [project.id]: 'architecture'
                                 }))
                               }
-                              className={`rounded-lg px-3 py-1.5 transition ${
+                              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 transition ${
                                 currentMode === 'architecture'
                                   ? 'bg-blue-600 text-white'
                                   : isDark
@@ -3195,7 +3703,18 @@ export default function Home() {
         {/* =================================================================== */}
         {/* 5. INTERACTIVE 3-COLUMN BACKEND PIPELINE SANDBOX (ILLUSTRATIVE)     */}
         {/* =================================================================== */}
-        <section id="sandbox" className="mx-auto mt-10 max-w-6xl scroll-mt-24 px-4 sm:px-6">
+        <section
+          id="sandbox"
+          className="relative mx-auto mt-10 max-w-6xl scroll-mt-24 px-4 sm:px-6"
+        >
+          {/* Architectural Dot-Matrix Radial Mask Behind Sandbox */}
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute -inset-x-6 -top-8 -bottom-6 -z-10 ${
+              isDark ? 'bg-dot-matrix opacity-75' : 'bg-dot-matrix-light opacity-80'
+            }`}
+          />
+
           <RevealSection>
             <div className="flex flex-col justify-between gap-4 border-b border-blue-500/15 pb-6 lg:flex-row lg:items-end">
               <div>
@@ -3203,14 +3722,22 @@ export default function Home() {
                   BACKEND ARCHITECTURE // ILLUSTRATIVE RBAC SANDBOX
                 </div>
                 <h2
-                  className={`font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-5xl ${
+                  className={`group/heading font-display mt-2 flex flex-wrap items-center gap-2.5 text-3xl font-extrabold tracking-tight sm:text-5xl ${
                     isDark ? 'text-white' : 'text-slate-950'
                   }`}
                 >
-                  Security wired for{' '}
-                  <span className="font-serif-italic pr-2 text-blue-500">
-                    actual work.
+                  <span>
+                    Security wired for{' '}
+                    <span className="font-serif-italic pr-2 text-blue-500">
+                      actual work.
+                    </span>
                   </span>
+                  <SectionAnchorButton
+                    sectionId="sandbox"
+                    label="RBAC and PostgreSQL Sandbox"
+                    onCopy={handleCopySectionLink}
+                    isDark={isDark}
+                  />
                 </h2>
               </div>
               <p
@@ -3219,16 +3746,244 @@ export default function Home() {
                 }`}
               >
                 Illustrative simulation: toggle a user role and target endpoint
-                to inspect how JWT claims, role scopes, and parameterized
-                PostgreSQL checks permit or block requests.
+                to trace JWT verification, RBAC middleware gating, and
+                parameterized PostgreSQL execution.
               </p>
             </div>
           </RevealSection>
 
           <RevealSection delay={90}>
-            <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {/* Interactive 4-Node "Packet Trace" Pipeline */}
+            <SpotlightCard isDark={isDark} className="mt-8 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                  <span className="rounded bg-blue-600/15 px-2 py-0.5 font-bold text-blue-500">
+                    TRACE
+                  </span>
+                  <span
+                    className={`font-semibold ${
+                      isDark ? 'text-white' : 'text-slate-900'
+                    }`}
+                  >
+                    4-Node Request Pipeline
+                  </span>
+                  <span
+                    className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                      isDark
+                        ? 'border-white/[0.1] bg-[#080A0F] text-slate-300'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {selectedRole} · {activeEndpointObj.id}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleExecuteSandbox()}
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-500"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  <span>{sandboxRunning ? 'Tracing...' : 'Send Request'}</span>
+                </button>
+              </div>
+
+              {/* Responsive 4-Node Horizontal (lg+) / Vertical (< lg) Pipeline */}
+              <div className="mt-5 flex flex-col items-stretch gap-1 lg:flex-row lg:items-center lg:gap-0">
+                {[
+                  {
+                    step: 1 as const,
+                    title: '1. Client UI',
+                    detail: `${selectedRole} · ${activeEndpointObj.project}`,
+                    reached: traceStage >= 1,
+                    denied: false
+                  },
+                  {
+                    step: 2 as const,
+                    title: '2. JWT Middleware',
+                    detail: `sub: ${activeRoleObj.userId}`,
+                    reached: traceStage >= 2,
+                    denied: false
+                  },
+                  {
+                    step: 3 as const,
+                    title: '3. Role Gate',
+                    detail: `scope: ${activeEndpointObj.requiredScope}`,
+                    reached: traceStage >= 3,
+                    denied: traceStage >= 3 && !isSandboxAuthorized
+                  },
+                  {
+                    step: 4 as const,
+                    title: '4. PostgreSQL pool.query()',
+                    detail: isSandboxAuthorized
+                      ? traceStage >= 4
+                        ? '200 OK · Row committed'
+                        : 'Preparing query...'
+                      : 'Blocked before SQL',
+                    reached: isSandboxAuthorized && traceStage >= 4,
+                    denied: false
+                  }
+                ].map((node, idx, allNodes) => {
+                  const nodeClasses = node.denied
+                    ? isDark
+                      ? 'border-rose-500/60 bg-rose-500/10 text-rose-200'
+                      : 'border-rose-400 bg-rose-50 text-rose-900'
+                    : node.reached
+                    ? isDark
+                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100'
+                      : 'border-emerald-500/60 bg-emerald-50 text-emerald-900'
+                    : isDark
+                    ? 'border-white/[0.08] bg-[#080A0F] text-slate-400 opacity-60'
+                    : 'border-slate-200 bg-slate-50 text-slate-500 opacity-70';
+
+                  const statusPillClasses = node.denied
+                    ? 'bg-rose-500/20 text-rose-400'
+                    : node.reached
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : isDark
+                    ? 'bg-white/[0.06] text-slate-400'
+                    : 'bg-slate-200 text-slate-600';
+
+                  const showConnector = idx < allNodes.length - 1;
+                  const nextIsBlockedGap = idx === 2 && !isSandboxAuthorized;
+                  const connectorActive =
+                    !nextIsBlockedGap && traceStage >= node.step;
+
+                  return (
+                    <Fragment key={node.title}>
+                      <div
+                        className={`min-w-0 flex-1 rounded-xl border p-3.5 transition-all duration-300 ${nodeClasses}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                          <span
+                            className={`rounded px-1.5 py-0.5 font-semibold ${statusPillClasses}`}
+                          >
+                            {node.denied
+                              ? '403 DENIED'
+                              : node.reached
+                              ? 'VERIFIED'
+                              : nextIsBlockedGap || (!isSandboxAuthorized && node.step === 4)
+                              ? 'SKIPPED'
+                              : 'QUEUED'}
+                          </span>
+                          <span className="text-[10px] opacity-65">
+                            0{node.step}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 truncate font-mono text-xs font-bold">
+                          {node.title}
+                        </div>
+                        <div className="mt-0.5 truncate font-mono text-[11px] opacity-80">
+                          {node.detail}
+                        </div>
+                      </div>
+
+                      {showConnector && (
+                        <>
+                          {/* Desktop Horizontal Connector */}
+                          <div
+                            aria-hidden="true"
+                            className="hidden items-center justify-center px-1.5 lg:flex lg:w-10 xl:w-14"
+                          >
+                            <div
+                              className={`relative h-[2px] w-full overflow-hidden rounded-full ${
+                                nextIsBlockedGap
+                                  ? 'bg-rose-500/35'
+                                  : isDark
+                                  ? 'bg-white/[0.1]'
+                                  : 'bg-slate-300'
+                              }`}
+                            >
+                              {connectorActive && (
+                                <span
+                                  className="animate-trace-packet absolute inset-y-0 left-0 w-1/2 rounded-full bg-gradient-to-r from-transparent via-emerald-400 to-cyan-300"
+                                  style={{ animationDelay: `${idx * 0.18}s` }}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Mobile / Tablet Vertical Connector */}
+                          <div
+                            aria-hidden="true"
+                            className="flex h-5 items-center justify-center lg:hidden"
+                          >
+                            <div
+                              className={`relative h-full w-[2px] overflow-hidden rounded-full ${
+                                nextIsBlockedGap
+                                  ? 'bg-rose-500/35'
+                                  : isDark
+                                  ? 'bg-white/[0.1]'
+                                  : 'bg-slate-300'
+                              }`}
+                            >
+                              {connectorActive && (
+                                <span
+                                  className="animate-trace-packet-y absolute inset-x-0 top-0 h-1/2 rounded-full bg-gradient-to-b from-transparent via-emerald-400 to-cyan-300"
+                                  style={{ animationDelay: `${idx * 0.18}s` }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </div>
+
+              {/* Middleware Rejection / Execution Log Banner */}
+              <div
+                className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 font-mono text-xs ${
+                  sandboxRunning
+                    ? isDark
+                      ? 'border-blue-500/35 bg-blue-500/10 text-blue-300'
+                      : 'border-blue-300 bg-blue-50 text-blue-800'
+                    : isSandboxAuthorized
+                    ? isDark
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                    : isDark
+                    ? 'border-rose-500/45 bg-rose-500/10 text-rose-300'
+                    : 'border-rose-300 bg-rose-50 text-rose-800'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  {sandboxRunning ? (
+                    <>
+                      <Server className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                      <span>
+                        Tracing {selectedRole} request to {activeEndpointObj.id}...
+                      </span>
+                    </>
+                  ) : isSandboxAuthorized ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                      <span>
+                        200 OK: Role &apos;{selectedRole}&apos; authorized for{' '}
+                        {activeEndpointObj.project} → PostgreSQL pool.query() executed.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+                      <span>{activeEndpointObj.getDeniedLog(selectedRole)}</span>
+                    </>
+                  )}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider opacity-80">
+                  {sandboxRunning
+                    ? `TRACING STAGE ${traceStage}/4...`
+                    : isSandboxAuthorized
+                    ? 'STAGE 4/4 PASSED'
+                    : 'STOPPED AT NODE 3'}
+                </span>
+              </div>
+            </SpotlightCard>
+
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               {/* Column 1: Simulated Request & Role Selector */}
-              <SpotlightCard isDark={isDark} className="p-6">
+              <SpotlightCard isDark={isDark} className="min-w-0 p-6">
                 <div className="flex items-center gap-2 font-mono text-xs">
                   <span className="rounded bg-blue-600/15 px-2 py-0.5 font-bold text-blue-500">
                     01
@@ -3259,7 +4014,7 @@ export default function Home() {
                           key={role.id}
                           onClick={() => {
                             setSelectedRole(role.id);
-                            handleExecuteSandbox();
+                            handleExecuteSandbox(role.id, undefined);
                           }}
                           className={`rounded-xl border py-2.5 font-mono text-xs font-semibold transition ${
                             active
@@ -3290,7 +4045,7 @@ export default function Home() {
                           key={ep.id}
                           onClick={() => {
                             setSelectedEndpoint(ep.id);
-                            handleExecuteSandbox();
+                            handleExecuteSandbox(undefined, ep.id);
                           }}
                           className={`w-full rounded-xl border p-3 text-left transition ${
                             active
@@ -3302,7 +4057,7 @@ export default function Home() {
                               : 'border-slate-200 bg-slate-50 hover:border-slate-300'
                           }`}
                         >
-                          <div className="font-mono text-xs font-semibold text-blue-400">
+                          <div className="break-all font-mono text-xs font-semibold text-blue-400">
                             {ep.id}
                           </div>
                           <div className="mt-0.5 text-[11px] text-slate-400">
@@ -3316,7 +4071,7 @@ export default function Home() {
               </SpotlightCard>
 
               {/* Column 2: Middleware & PostgreSQL Guard Inspection */}
-              <SpotlightCard isDark={isDark} className="p-6">
+              <SpotlightCard isDark={isDark} className="min-w-0 p-6">
                 <div className="flex items-center gap-2 font-mono text-xs">
                   <span className="rounded bg-blue-600/15 px-2 py-0.5 font-bold text-blue-500">
                     02
@@ -3387,9 +4142,9 @@ export default function Home() {
               </SpotlightCard>
 
               {/* Column 3: Simulated Execution Output */}
-              <SpotlightCard isDark={isDark} className="flex flex-col justify-between p-6">
-                <div>
-                  <div className="flex items-center justify-between gap-2">
+              <SpotlightCard isDark={isDark} className="flex min-w-0 flex-col justify-between p-6">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 font-mono text-xs">
                       <span className="rounded bg-blue-600/15 px-2 py-0.5 font-bold text-blue-500">
                         03
@@ -3405,11 +4160,11 @@ export default function Home() {
 
                     <button
                       type="button"
-                      onClick={handleExecuteSandbox}
+                      onClick={() => handleExecuteSandbox()}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 font-mono text-[11px] font-semibold text-white transition hover:bg-blue-500"
                     >
                       <Play className="h-3 w-3" />
-                      <span>Run Check</span>
+                      <span>Send Request</span>
                     </button>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-400">
@@ -3417,62 +4172,85 @@ export default function Home() {
                   </p>
 
                   {/* HTTP Status Banner */}
-                  <div
-                    className={`mt-5 rounded-xl border p-4 transition-opacity duration-200 ${
-                      sandboxRunning ? 'opacity-40' : 'opacity-100'
-                    } ${
-                      isSandboxAuthorized
-                        ? 'border-emerald-500/35 bg-emerald-500/[0.08]'
-                        : 'border-rose-500/35 bg-rose-500/[0.08]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-mono text-xs">
-                      <span
-                        className={`inline-flex items-center gap-1.5 font-bold ${
-                          isSandboxAuthorized ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {isSandboxAuthorized ? (
-                          <CheckCircle2 className="h-4 w-4" />
-                        ) : (
-                          <ShieldAlert className="h-4 w-4" />
-                        )}
-                        {isSandboxAuthorized
-                          ? activeEndpointObj.successResponse.statusText
-                          : activeEndpointObj.deniedResponse.statusText}
-                      </span>
-                      <span className="rounded bg-black/25 px-2 py-0.5 text-[11px] text-slate-300">
-                        {isSandboxAuthorized
-                          ? activeEndpointObj.successResponse.tag
-                          : activeEndpointObj.deniedResponse.tag}
-                      </span>
-                    </div>
-
-                    <pre
-                      className={`mt-3 overflow-x-auto rounded-lg border p-3 font-mono text-[11px] leading-relaxed ${
+                  {sandboxRunning ? (
+                    <div
+                      className={`mt-5 animate-pulse rounded-xl border p-4 font-mono text-xs ${
                         isDark
-                          ? 'border-white/[0.08] bg-[#06070B] text-slate-200'
-                          : 'border-slate-200 bg-slate-900 text-slate-100'
+                          ? 'border-blue-500/35 bg-blue-500/[0.08] text-blue-300'
+                          : 'border-blue-200 bg-blue-50 text-blue-800'
                       }`}
                     >
-                      <code>
-                        {JSON.stringify(
-                          isSandboxAuthorized
-                            ? activeEndpointObj.successResponse.body
-                            : activeEndpointObj.deniedResponse.body,
-                          null,
-                          2
-                        )}
-                      </code>
-                    </pre>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-2 font-bold">
+                          <Server className="h-4 w-4 text-blue-400" />
+                          <span>Evaluating middleware &amp; role gates...</span>
+                        </span>
+                        <span className="rounded bg-black/20 px-2 py-0.5 text-[11px]">
+                          STAGE {traceStage}/4
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] opacity-80">
+                        Waiting for node {traceStage} verification before returning HTTP response.
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className={`mt-5 rounded-xl border p-4 transition-opacity duration-200 ${
+                        isSandboxAuthorized
+                          ? 'border-emerald-500/35 bg-emerald-500/[0.08]'
+                          : 'border-rose-500/35 bg-rose-500/[0.08]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-mono text-xs">
+                        <span
+                          className={`inline-flex items-center gap-1.5 font-bold ${
+                            isSandboxAuthorized ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {isSandboxAuthorized ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <ShieldAlert className="h-4 w-4" />
+                          )}
+                          {isSandboxAuthorized
+                            ? activeEndpointObj.successResponse.statusText
+                            : activeEndpointObj.deniedResponse.statusText}
+                        </span>
+                        <span className="rounded bg-black/25 px-2 py-0.5 text-[11px] text-slate-300">
+                          {isSandboxAuthorized
+                            ? activeEndpointObj.successResponse.tag
+                            : activeEndpointObj.deniedResponse.tag}
+                        </span>
+                      </div>
+
+                      <pre
+                        className={`mt-3 overflow-x-auto rounded-lg border p-3 font-mono text-[11px] leading-relaxed ${
+                          isDark
+                            ? 'border-white/[0.08] bg-[#06070B] text-slate-200'
+                            : 'border-slate-200 bg-slate-900 text-slate-100'
+                        }`}
+                      >
+                        <code>
+                          {JSON.stringify(
+                            isSandboxAuthorized
+                              ? activeEndpointObj.successResponse.body
+                              : activeEndpointObj.deniedResponse.body,
+                            null,
+                            2
+                          )}
+                        </code>
+                      </pre>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 border-t border-blue-500/15 pt-3 font-mono text-[11px] text-slate-500">
-                  {sandboxExecuted &&
-                    (isSandboxAuthorized
-                      ? `✓ Authorized ${selectedRole} → simulated SQL check passed.`
-                      : `✕ Blocked ${selectedRole} at RBAC middleware before database touch.`)}
+                  {sandboxRunning
+                    ? `Tracing stage ${traceStage}/4 for ${selectedRole}...`
+                    : sandboxExecuted &&
+                      (isSandboxAuthorized
+                        ? `✓ Authorized ${selectedRole} → simulated SQL check passed.`
+                        : `✕ Blocked ${selectedRole} at RBAC middleware before database touch.`)}
                 </div>
               </SpotlightCard>
             </div>
@@ -3482,7 +4260,7 @@ export default function Home() {
         {/* =================================================================== */}
         {/* 6. CAPABILITIES & 4-STEP BUILD PROCESS                              */}
         {/* =================================================================== */}
-        <section id="services" className="mx-auto mt-28 max-w-6xl scroll-mt-24 px-4 sm:px-6">
+        <section id="capabilities" className="mx-auto mt-28 max-w-6xl scroll-mt-24 px-4 sm:px-6">
           <RevealSection>
             <div className="flex flex-col justify-between gap-4 border-b border-blue-500/15 pb-6 lg:flex-row lg:items-end">
               <div>
@@ -3490,14 +4268,22 @@ export default function Home() {
                   CAPABILITIES &amp; APPROACH
                 </div>
                 <h2
-                  className={`font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-5xl ${
+                  className={`group/heading font-display mt-2 flex flex-wrap items-center gap-2.5 text-3xl font-extrabold tracking-tight sm:text-5xl ${
                     isDark ? 'text-white' : 'text-slate-950'
                   }`}
                 >
-                  What I can build{' '}
-                  <span className="font-serif-italic pr-2 text-blue-500">
-                    for you.
+                  <span>
+                    What I can build{' '}
+                    <span className="font-serif-italic pr-2 text-blue-500">
+                      for you.
+                    </span>
                   </span>
+                  <SectionAnchorButton
+                    sectionId="capabilities"
+                    label="Capabilities and Build Process"
+                    onCopy={handleCopySectionLink}
+                    isDark={isDark}
+                  />
                 </h2>
               </div>
               <p
@@ -3564,10 +4350,10 @@ export default function Home() {
           {/* 4-Step Horizontal Build Process Strip */}
           <RevealSection delay={140}>
             <div
-              className={`mt-6 grid grid-cols-1 divide-y rounded-2xl border sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 ${
+              className={`mt-6 grid grid-cols-1 divide-y rounded-2xl border sm:grid-cols-2 sm:divide-y-0 sm:[&>*:nth-child(odd)]:border-r sm:[&>*:nth-child(-n+2)]:border-b lg:grid-cols-4 lg:[&>*]:border-b-0 lg:[&>*:not(:last-child)]:border-r ${
                 isDark
-                  ? 'divide-white/[0.08] border-white/[0.09] bg-[#0D1017]'
-                  : 'divide-slate-200 border-slate-200 bg-white shadow-sm'
+                  ? 'divide-white/[0.08] border-white/[0.09] bg-[#0D1017] [&>*]:border-white/[0.08]'
+                  : 'divide-slate-200 border-slate-200 bg-white shadow-sm [&>*]:border-slate-200'
               }`}
             >
               {DELIVERY_STEPS.map((item) => (
@@ -3603,7 +4389,7 @@ export default function Home() {
                   className="overflow-hidden rounded-3xl p-3 sm:p-4"
                 >
                   <div
-                    className={`relative aspect-[4/5] w-full overflow-hidden rounded-2xl border ${
+                    className={`relative aspect-[4/5] max-h-[380px] w-full overflow-hidden rounded-2xl border sm:max-h-[440px] lg:max-h-none ${
                       isDark ? 'border-white/[0.08] bg-[#090B11]' : 'border-slate-200 bg-slate-100'
                     }`}
                   >
@@ -3651,14 +4437,22 @@ export default function Home() {
                   ABOUT
                 </div>
                 <h2
-                  className={`font-display mt-3 text-3xl font-extrabold tracking-tight sm:text-5xl ${
+                  className={`group/heading font-display mt-3 flex flex-wrap items-center gap-2.5 text-3xl font-extrabold tracking-tight sm:text-5xl ${
                     isDark ? 'text-white' : 'text-slate-950'
                   }`}
                 >
-                  I like software that makes the next step{' '}
-                  <span className="font-serif-italic pr-2 text-blue-500">
-                    obvious.
+                  <span>
+                    I like software that makes the next step{' '}
+                    <span className="font-serif-italic pr-2 text-blue-500">
+                      obvious.
+                    </span>
                   </span>
+                  <SectionAnchorButton
+                    sectionId="about"
+                    label="About Freedom"
+                    onCopy={handleCopySectionLink}
+                    isDark={isDark}
+                  />
                 </h2>
 
                 <div
@@ -3764,11 +4558,17 @@ export default function Home() {
                   CONTACT
                 </div>
                 <h2
-                  className={`font-display mt-3 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[54px] lg:leading-[1.04] ${
+                  className={`group/heading font-display mt-3 flex flex-wrap items-center gap-2.5 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[54px] lg:leading-[1.04] ${
                     isDark ? 'text-white' : 'text-slate-950'
                   }`}
                 >
-                  Got something worth building?
+                  <span>Got something worth building?</span>
+                  <SectionAnchorButton
+                    sectionId="contact"
+                    label="Contact and Project Inquiry"
+                    onCopy={handleCopySectionLink}
+                    isDark={isDark}
+                  />
                 </h2>
                 <AnimatedBrushUnderline />
 
@@ -3932,7 +4732,7 @@ export default function Home() {
                                 key={scope}
                                 aria-pressed={active}
                                 onClick={() => handleToggleScope(scope)}
-                                className={`rounded-lg border px-3 py-1.5 font-mono text-[11px] font-semibold transition ${
+                                className={`min-h-[40px] rounded-lg border px-3.5 py-2 font-mono text-xs font-semibold transition sm:text-sm ${
                                   active
                                     ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
                                     : isDark
@@ -3961,7 +4761,7 @@ export default function Home() {
                                 key={timeline}
                                 aria-pressed={active}
                                 onClick={() => handleSelectTimeline(timeline)}
-                                className={`rounded-lg border px-3 py-1.5 font-mono text-[11px] font-semibold transition ${
+                                className={`min-h-[40px] rounded-lg border px-3.5 py-2 font-mono text-xs font-semibold transition sm:text-sm ${
                                   active
                                     ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
                                     : isDark
@@ -4270,7 +5070,11 @@ export default function Home() {
           aria-modal="true"
           aria-label="Command Palette"
           className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 px-4 pt-20 backdrop-blur-md sm:pt-28"
-          onClick={() => setCmdOpen(false)}
+          onClick={() => {
+            setCmdOpen(false);
+            setActiveTerminalCmd(null);
+            setPingResult(null);
+          }}
         >
           <div
             className={`w-full max-w-lg overflow-hidden rounded-2xl border shadow-2xl ${
@@ -4292,10 +5096,16 @@ export default function Home() {
                 aria-label="Search commands"
                 value={cmdQuery}
                 onChange={(e) => {
-                  setCmdQuery(e.target.value);
+                  const val = e.target.value;
+                  setActiveTerminalCmd(null);
+                  setPingResult(null);
+                  setCmdQuery(val);
                   setCmdSelectedIndex(0);
+                  if (val.trim().toLowerCase() === 'ping') {
+                    void runPingCheck();
+                  }
                 }}
-                placeholder="Jump to section, toggle theme, open summary, or launch app..."
+                placeholder="Type whoami, ping, stack, hire, or search commands..."
                 className={`w-full bg-transparent text-sm focus:outline-none ${
                   isDark
                     ? 'text-white placeholder-slate-500'
@@ -4305,12 +5115,67 @@ export default function Home() {
               <button
                 type="button"
                 aria-label="Close command palette"
-                onClick={() => setCmdOpen(false)}
+                onClick={() => {
+                  setCmdOpen(false);
+                  setActiveTerminalCmd(null);
+                  setPingResult(null);
+                }}
                 className="rounded-lg p-1 text-slate-400 transition hover:bg-blue-500/10 hover:text-blue-400"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {(() => {
+              const trimmed = cmdQuery.trim().toLowerCase();
+              const resolvedCmd: TerminalEasterCommand | null =
+                activeTerminalCmd ||
+                (trimmed === 'whoami' ||
+                trimmed === 'ping' ||
+                trimmed === 'stack'
+                  ? trimmed
+                  : null);
+              if (!resolvedCmd) return null;
+              const termEntry = TERMINAL_EASTER_OUTPUTS[resolvedCmd];
+              const displayedOutput =
+                resolvedCmd === 'ping' && pingResult ? pingResult : termEntry.output;
+              return (
+                <div
+                  role="region"
+                  aria-label="Developer terminal output"
+                  className={`mx-3 mt-3 rounded-xl border p-3.5 font-mono text-xs ${
+                    isDark
+                      ? 'border-emerald-500/35 bg-[#06090F] text-emerald-300'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 text-[11px] opacity-85">
+                    <span className="inline-flex items-center gap-1.5 font-semibold">
+                      <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>$ {termEntry.command}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTerminalCmd(null);
+                        setPingResult(null);
+                        setCmdQuery('');
+                      }}
+                      className="rounded px-1.5 py-0.5 text-[10px] hover:bg-emerald-500/15"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div
+                    className={`mt-2 leading-relaxed ${
+                      isDark ? 'text-slate-200' : 'text-slate-800'
+                    }`}
+                  >
+                    {displayedOutput}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="max-h-80 overflow-y-auto p-2">
               {commandActions.length === 0 ? (
@@ -4327,7 +5192,7 @@ export default function Home() {
                       key={item.id}
                       onMouseEnter={() => setCmdSelectedIndex(idx)}
                       onClick={item.action}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                      className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition ${
                         isSelected
                           ? 'bg-blue-600/15 text-blue-400'
                           : isDark
@@ -4335,15 +5200,15 @@ export default function Home() {
                           : 'text-slate-700 hover:bg-slate-100'
                       }`}
                     >
-                      <span className="flex items-center gap-2.5">
+                      <span className="flex min-w-0 items-center gap-2.5">
                         <Icon
-                          className={`h-4 w-4 ${
+                          className={`h-4 w-4 shrink-0 ${
                             isSelected ? 'text-blue-500' : 'text-slate-500'
                           }`}
                         />
-                        <span>{item.label}</span>
+                        <span className="truncate">{item.label}</span>
                       </span>
-                      <span className="font-mono text-[11px] text-slate-500">
+                      <span className="shrink-0 font-mono text-[11px] text-slate-500">
                         {item.hint}
                       </span>
                     </button>
@@ -4353,17 +5218,17 @@ export default function Home() {
             </div>
 
             <div
-              className={`flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] text-slate-500 ${
+              className={`flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 font-mono text-[10px] text-slate-500 ${
                 isDark
                   ? 'border-white/[0.08] bg-[#07090E]'
                   : 'border-slate-200 bg-slate-50'
               }`}
             >
               <span>↑↓ Navigate</span>
+              <span>whoami · ping · stack · hire</span>
               <span className="flex items-center gap-1">
-                <CornerDownLeft className="h-3 w-3" /> Execute
+                <CornerDownLeft className="h-3 w-3" /> Execute · ESC Close
               </span>
-              <span>ESC Close</span>
             </div>
           </div>
         </div>
