@@ -1,18 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 :root {
   color-scheme: dark;
-  --background: #070a12;
-  --surface: #10131e;
+  --background: #06070b;
+  --surface: #0d1017;
   --surface-raised: #121622;
   --foreground: #f8fafc;
   --muted: #9aa3b2;
-  --accent: #4d9fff;
-  --accent-strong: #82c3ff;
-  --accent-soft: rgb(77 159 255 / 0.14);
-  --border: rgb(255 255 255 / 0.15);
-  --border-strong: rgb(255 255 255 / 0.22);
+  --accent: #3b82f6;
+  --accent-strong: #60a5fa;
+  --accent-soft: rgb(59 130 246 / 0.14);
+  --border: rgb(255 255 255 / 0.1);
+  --border-strong: rgb(255 255 255 / 0.18);
   --radius: 16px;
 }
 
@@ -26,8 +25,59 @@
   --color-accent-strong: var(--accent-strong);
   --color-line: var(--border);
   --color-line-strong: var(--border-strong);
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.font-serif-italic {
+  font-family: var(--font-instrument-serif), Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em;
+}
+
+.reel-masked {
+  mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+
+/* Smooth top and bottom fade into the dark background */
+.reel-edge-mask {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+
+.reel-tilt-grid {
+  transform: perspective(950px) rotateY(-24deg) rotateX(8deg) rotateZ(-4deg);
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.reel-column,
+.animate-reel-up,
+.animate-reel-down {
+  transform-style: preserve-3d;
 }
 
 * {
@@ -45,7 +95,7 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -56,7 +106,7 @@ img {
 }
 
 ::selection {
-  background: rgb(77 159 255 / 30%);
+  background: rgb(59 130 246 / 30%);
   color: #ffffff;
 }
 
@@ -66,7 +116,173 @@ img {
   border-radius: 6px;
 }
 
+@keyframes verbSwapIn {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes reelScrollUp {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, -50%, 0);
+  }
+}
+
+@keyframes reelScrollDown {
+  0% {
+    transform: translate3d(0, -50%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes techMarquee {
+  0% {
+    transform: translate3d(0%, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes packetSweep {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(340%);
+    opacity: 0;
+  }
+}
+
+@keyframes heroStagger {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-verb-swap {
+  animation: verbSwapIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-reel-up {
+  animation: reelScrollUp 32s linear infinite;
+  will-change: transform;
+}
+
+.animate-reel-down {
+  animation: reelScrollDown 32s linear infinite;
+  will-change: transform;
+}
+
+/* Keep both reel columns gliding smoothly without pausing on hover */
+
+.animate-tech-marquee {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  width: max-content;
+  align-items: center;
+  gap: 2.5rem;
+  animation: techMarquee 28s linear infinite;
+}
+
+.marquee-shell:hover .animate-tech-marquee {
+  animation-play-state: paused;
+}
+
+.animate-packet {
+  animation: packetSweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-hero-1 {
+  animation: heroStagger 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+.animate-hero-2 {
+  animation: heroStagger 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.14s both;
+}
+
+.animate-hero-3 {
+  animation: heroStagger 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both;
+}
+
+.animate-hero-4 {
+  animation: heroStagger 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.34s both;
+}
+
+/* Zero-rerender GPU cursor spotlight (driven by --mouse-x / --mouse-y CSS variables) */
+.spotlight-surface {
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(59, 130, 246, 0.14),
+    transparent 40%
+  );
+}
+
+.spotlight-surface-light {
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(37, 99, 235, 0.085),
+    transparent 40%
+  );
+}
+
+.spotlight-border-glow {
+  background: radial-gradient(
+    420px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(96, 165, 250, 0.45),
+    transparent 45%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+}
+
+.xray-blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(59, 130, 246, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(59, 130, 246, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.browser-tilt-frame {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .browser-tilt-frame {
+    transform: none !important;
+  }
   *,
   *::before,
   *::after {
@@ -74,5 +290,20 @@ img {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .animate-verb-swap,
+  .animate-reel-up,
+  .animate-reel-down,
+  .animate-tech-marquee,
+  .animate-packet,
+  .animate-hero-1,
+  .animate-hero-2,
+  .animate-hero-3,
+  .animate-hero-4 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
   }
 }
